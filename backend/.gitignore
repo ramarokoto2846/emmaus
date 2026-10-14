@@ -1,0 +1,47 @@
+# ============================================================
+# BACKEND — Emmaüs
+# ============================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+ENV/
+.Python
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+local_settings.py
+staticfiles/
+media/
+
+# Environnement
+.env
+.env.*
+!.env.example
+
+# Migrations locales (décommente si tu veux les exclure)
+# */migrations/*.py
+# !*/migrations/__init__.py
+
+# Logs
+*.log
+
+# Cache
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.idea/
+.vscode/
