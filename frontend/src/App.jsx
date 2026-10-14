@@ -10,6 +10,11 @@ import Me from "./views/Me";
 import Parametres from "./views/Parametres";
 import Notifications from "./views/Notifications";
 import PublierVideo from "./views/PublierVideo";
+import AdminModerateurs from "./views/AdminModerateurs";
+import DetailPublication from "./views/DetailPublication";
+import DetailVideo from "./views/DetailVideo";
+import DetailCommentaire from "./views/DetailCommentaire";
+
 import Recherche from "./views/Recherche";
 import Moderation from "./views/Moderation";
 import AdminVersetsSidebar from "./views/AdminVersetsSidebar";
@@ -49,6 +54,11 @@ export default function App() {
           <Route path="recherche" element={<Recherche />} />
           <Route path="moderation" element={<Moderation />} />
           <Route path="admin/versets-sidebar" element={<AdminVersetsSidebar />} />
+          <Route path="admin/moderateurs" element={<AdminModerateurs />} />
+          <Route path="publication/:id" element={<DetailPublication />} />
+          <Route path="video/:id" element={<DetailVideo />} />
+          <Route path="commentaire/:id" element={<DetailCommentaire />} />
+
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

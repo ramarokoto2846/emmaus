@@ -2,12 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Avatar from "../components/ui/Avatar";
+import NomUtilisateur from "../components/ui/NomUtilisateur";
 import Button from "../components/ui/Button";
 import Icon from "../components/ui/Icon";
 import Post from "../components/feed/Post";
 import ListeProfils from "../components/profile/ListeProfils";
 import { useAuthStore } from "../store/authStore";
 import {
+  compterEnregistrements,
+  listeEnregistrements,
   publications,
   videos,
   abonnesDe,
@@ -24,6 +27,18 @@ export default function Me() {
     queryKey: ["mes-publications", profil?.id],
     queryFn: () => publications({ auteur: profil?.id }),
     enabled: !!profil,
+  });
+
+  const { data: enregistrementsData } = useQuery({
+    queryKey: ["enregistrements-count"],
+    queryFn: compterEnregistrements,
+    enabled: !!profil,
+  });
+
+  const { data: enregistrementsListeData } = useQuery({
+    queryKey: ["enregistrements-liste"],
+    queryFn: listeEnregistrements,
+    enabled: !!profil && onglet === "enregistrees",
   });
 
   const { data: videosData } = useQuery({
@@ -63,9 +78,12 @@ export default function Me() {
   const pubsVideos = toutesPubs.filter((p) => p.video || p.type === "video");
   const pubsStatuts = toutesPubs.filter((p) => !p.video && p.type !== "video");
 
+  const nbEnregistrements = enregistrementsData?.total || 0;
+
   const ONGLETS = [
     { k: "videos", label: `Vidéos · ${pubsVideos.length}` },
     { k: "statuts", label: `Statuts · ${pubsStatuts.length}` },
+    { k: "enregistrees", label: `Enregistrées · ${nbEnregistrements}` },
     { k: "propos", label: "À propos" },
   ];
 
@@ -84,7 +102,7 @@ export default function Me() {
         <div className="pr">
           <Avatar profil={profil} />
           <div>
-            <h1>{profil.nom_affiche}</h1>
+            <h1><NomUtilisateur profil={profil} /></h1>
             <div className="sub">
               {profil.sous_titre || profil.ville || "Membre Emmaüs"}
             </div>
@@ -178,6 +196,45 @@ export default function Me() {
             </div>
           ) : (
             pubsStatuts.map((p) => <Post key={p.id} publication={p} />)
+          )}
+        </>
+      )}
+
+      {onglet === "enregistrees" && (
+        <>
+          {!enregistrementsListeData ? (
+            <p className="sub">Chargement…</p>
+          ) : enregistrementsListeData.length === 0 ? (
+            <div className="card post" style={{ textAlign: "center" }}>
+              <p className="sub" style={{ marginBottom: 14 }}>
+                Tu n'as enregistré aucun contenu pour l'instant.
+              </p>
+              <p className="sub" style={{ fontSize: 13 }}>
+                Clique sur le 🔖 d'une publication ou d'une vidéo pour
+                l'enregistrer ici.
+              </p>
+            </div>
+          ) : (
+            enregistrementsListeData.map((e) => {
+              if (e.publication) {
+                return <Post key={e.enregistrement_id} publication={e.publication} />;
+              }
+              if (e.video) {
+                return (
+                  <div
+                    key={e.enregistrement_id}
+                    className="card post"
+                    style={{ padding: 14 }}
+                  >
+                    <div className="vt">
+                      🎬 {e.video.titre}
+                      <small>{e.video.nb_vues} vues</small>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })
           )}
         </>
       )}

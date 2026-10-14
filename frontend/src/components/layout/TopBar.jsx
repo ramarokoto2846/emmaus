@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   FiSearch,
   FiLogOut,
@@ -14,6 +15,7 @@ import {
 } from "react-icons/fi";
 import VersetSidebar from "./VersetSidebar";
 import { useAuthStore } from "../../store/authStore";
+import { compterSignalements } from "../../api/endpoints";
 import { useConfirmation } from "../ui/Confirmation";
 
 export default function TopBar() {
@@ -36,6 +38,15 @@ export default function TopBar() {
 
   const estAdmin = user?.role === "admin";
   const estModerateur = user?.role === "admin" || user?.role === "moderateur";
+
+  const { data: compteurSignalements } = useQuery({
+    queryKey: ["moderation-count"],
+    queryFn: compterSignalements,
+    enabled: estModerateur,
+    refetchInterval: 30_000,
+  });
+
+  const nbSignalements = compteurSignalements?.ouverts || 0;
 
   useEffect(() => {
     function onResize() {
@@ -192,7 +203,10 @@ export default function TopBar() {
           <button onClick={() => goTo("/moderation")}>
             <FiShield size={16} />
             <span>Modération</span>
-          </button>
+          {nbSignalements > 0 && (
+                        <span className="badge-inline">{nbSignalements}</span>
+                      )}
+                    </button>
           {estAdmin && (
             <button onClick={() => goTo("/admin/versets-sidebar")}>
               <FiBookOpen size={16} />

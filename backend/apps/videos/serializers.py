@@ -49,6 +49,7 @@ class VideoListeSerializer(serializers.ModelSerializer):
     duree = serializers.SerializerMethodField()
     fichier_url = serializers.SerializerMethodField()
     miniature_url = serializers.SerializerMethodField()
+    est_verifiee = serializers.SerializerMethodField()
 
     class Meta:
         model = Video
@@ -56,7 +57,7 @@ class VideoListeSerializer(serializers.ModelSerializer):
             "id", "titre", "description", "miniature_url", "fichier_url",
             "duree_secondes", "duree", "format", "type", "statut", "visibilite",
             "nb_vues", "nb_amen", "nb_commentaires",
-            "publie_le", "auteur_nom", "auteur_initiales",
+            "publie_le", "auteur_nom", "auteur_initiales", "est_verifiee",
         )
 
     def get_duree(self, obj):
@@ -64,6 +65,10 @@ class VideoListeSerializer(serializers.ModelSerializer):
             return None
         m, s = divmod(obj.duree_secondes, 60)
         return f"{m}:{s:02d}"
+
+    def get_est_verifiee(self, obj):
+        """True si un modérateur a déjà examiné cette vidéo."""
+        return obj.moderation_verifiee
 
     def _url_absolue(self, request, fichier):
         if not fichier:

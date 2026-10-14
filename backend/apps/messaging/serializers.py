@@ -61,6 +61,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             "id": str(p.utilisateur_id),
             "pseudo": p.utilisateur.pseudo,
             "nom_affiche": p.nom_affiche,
+            "role": p.utilisateur.role,
             "initiales": p.initiales,
             "avatar": avatar_url,
             "sous_titre": p.sous_titre,

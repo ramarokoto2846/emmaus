@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Avatar from "../components/ui/Avatar";
+import NomUtilisateur from "../components/ui/NomUtilisateur";
 import { profils, suivre } from "../api/endpoints";
 import { useAuthStore } from "../store/authStore";
 
@@ -114,7 +115,7 @@ export default function Discover() {
                   }}
                 />
                 <Avatar profil={p} />
-                <b>{p.nom_affiche}</b>
+                <NomUtilisateur profil={p} taille="sm" />
                 <small>{p.sous_titre || p.ville || "Membre Emmaüs"}</small>
                 <small>{p.nb_abonnes} abonnés</small>
 

@@ -1,9 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { FiShield, FiBookOpen, FiLogOut, FiSettings } from "react-icons/fi";
 import Avatar from "../ui/Avatar";
+import NomUtilisateur from "../ui/NomUtilisateur";
 import Icon from "../ui/Icon";
 import VersetSidebar from "./VersetSidebar";
 import { useAuthStore } from "../../store/authStore";
+import { compterSignalements } from "../../api/endpoints";
 import { useConfirmation } from "../ui/Confirmation";
 
 export default function Sidebar() {
@@ -12,9 +15,18 @@ export default function Sidebar() {
   const deconnexion = useAuthStore((s) => s.deconnexion);
   const navigate = useNavigate();
   const confirmer = useConfirmation();
-
   const estAdmin = user?.role === "admin";
   const estModerateur = user?.role === "admin" || user?.role === "moderateur";
+
+  const { data: compteurSignalements } = useQuery({
+    queryKey: ["moderation-count"],
+    queryFn: compterSignalements,
+    enabled: estModerateur,
+    refetchInterval: 30_000,
+  });
+
+  const nbSignalements = compteurSignalements?.ouverts || 0;
+
 
   async function handleLogout() {
     const ok = await confirmer({
@@ -44,7 +56,7 @@ export default function Sidebar() {
       <button className="row mini-me" onClick={() => navigate("/moi")}>
         <Avatar profil={profil} size="sm" />
         <div>
-          <b>{profil?.nom_affiche || "Mon compte"}</b>
+          <NomUtilisateur profil={profil} taille="sm" />
           <small>Voir mon mur</small>
         </div>
       </button>
@@ -96,7 +108,17 @@ export default function Sidebar() {
           >
             <FiShield size={20} />
             <span>Modération</span>
+            {nbSignalements > 0 && <em className="badge-moderation">{nbSignalements}</em>}
           </NavLink>
+          {estAdmin && (
+            <NavLink
+              to="/admin/moderateurs"
+              className={({ isActive }) => `nb ${isActive ? "on" : ""}`}
+            >
+              <FiShield size={20} />
+              <span>Modérateurs</span>
+            </NavLink>
+          )}
 
           {estAdmin && (
             <NavLink

@@ -3,7 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FiTrash2, FiChevronLeft } from "react-icons/fi";
 import Avatar from "../components/ui/Avatar";
+import NomUtilisateur from "../components/ui/NomUtilisateur";
 import { useConfirmation } from "../components/ui/Confirmation";
+import { useToast } from "../components/ui/Toast";
 import { useAuthStore } from "../store/authStore";
 import {
   conversation,
@@ -158,7 +160,7 @@ export default function Messages() {
                       {nonLu && <span className="cvt-dot" />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <b>{autre?.nom_affiche || "Conversation"}</b>
+                      <NomUtilisateur profil={autre} taille="sm" />
                       <small
                         style={{
                           fontStyle: c.dernier_message ? "normal" : "italic",
@@ -192,12 +194,27 @@ export default function Messages() {
               )}
               {activeConv ? (
                 <>
-                  <Avatar profil={autreMembre(activeConv)} size="sm" />
-                  <div>
-                    <b>{autreMembre(activeConv)?.nom_affiche}</b>
+                  <button
+                    className="thh-avatar-btn"
+                    onClick={() => {
+                      const autre = autreMembre(activeConv);
+                      if (autre?.id) navigate(`/profil/${autre.id}`);
+                    }}
+                    aria-label={`Voir le profil de ${autreMembre(activeConv)?.nom_affiche}`}
+                  >
+                    <Avatar profil={autreMembre(activeConv)} size="sm" />
+                  </button>
+                  <button
+                    className="thh-nom-btn"
+                    onClick={() => {
+                      const autre = autreMembre(activeConv);
+                      if (autre?.id) navigate(`/profil/${autre.id}`);
+                    }}
+                  >
+                    <NomUtilisateur profil={autreMembre(activeConv)} taille="sm" />
                     <br />
                     <small className="sub">En ligne</small>
-                  </div>
+                  </button>
                 </>
               ) : (
                 <p className="sub">Sélectionne une conversation</p>
@@ -237,6 +254,7 @@ export default function Messages() {
 function BulleMessage({ message, moi, conversationId }) {
   const qc = useQueryClient();
   const confirmer = useConfirmation();
+  const { afficher: afficherToast } = useToast();
   const [menuOuvert, setMenuOuvert] = useState(false);
   const ref = useRef(null);
 
@@ -245,6 +263,10 @@ function BulleMessage({ message, moi, conversationId }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["messages", conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
+      afficherToast("Le message a été supprimé.", {
+        type: "success",
+        titre: "Message supprimé",
+      });
     },
   });
 

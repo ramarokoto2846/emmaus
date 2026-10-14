@@ -16,8 +16,10 @@ import {
   FiCornerDownRight,
 } from "react-icons/fi";
 import Avatar from "../ui/Avatar";
+import NomUtilisateur from "../ui/NomUtilisateur";
 import Signalement from "../ui/Signalement";
 import { useConfirmation } from "../ui/Confirmation";
+import { useToast } from "../ui/Toast";
 import { useAuthStore } from "../../store/authStore";
 import {
   commentaires,
@@ -31,6 +33,7 @@ export default function CommentairesModal({ publication, onClose }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const confirmer = useConfirmation();
+  const { afficher: afficherToast } = useToast();
   const monProfil = useAuthStore((s) => s.profil);
 
   const [texte, setTexte] = useState("");
@@ -73,6 +76,10 @@ export default function CommentairesModal({ publication, onClose }) {
       setEditionId(null);
       setTexteEdition("");
       qc.invalidateQueries({ queryKey: ["commentaires", publication.id] });
+      afficherToast("Ton commentaire a été modifié.", {
+        type: "success",
+        titre: "Commentaire modifié",
+      });
     },
   });
 
@@ -81,6 +88,10 @@ export default function CommentairesModal({ publication, onClose }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["commentaires", publication.id] });
       qc.invalidateQueries({ queryKey: ["fil"] });
+      afficherToast("Ton commentaire a été supprimé.", {
+        type: "success",
+        titre: "Commentaire supprimé",
+      });
     },
   });
 
@@ -332,7 +343,7 @@ function Commentaire({
           ) : (
             <>
               <div className="commentaire-bulle">
-                <b>{commentaire.auteur?.nom_affiche || "Anonyme"}</b>
+                <NomUtilisateur profil={commentaire.auteur} taille="sm" />
                 <span>{commentaire.texte}</span>
               </div>
               <div className="commentaire-meta">

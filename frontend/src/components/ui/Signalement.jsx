@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FiFlag, FiX } from "react-icons/fi";
 import { signaler } from "../../api/endpoints";
+import { useToast } from "./Toast";
 
 const MOTIFS = [
   {
@@ -49,26 +50,44 @@ const MOTIFS = [
 
 function ModalSignalement({ cibleType, cibleId, onClose }) {
   const qc = useQueryClient();
+  const { afficher: afficherToast } = useToast();
   const [motif, setMotif] = useState("");
   const [details, setDetails] = useState("");
-  const [merci, setMerci] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (data) => signaler(data),
     onSuccess: () => {
-      setMerci(true);
+      // Invalider les caches
       qc.invalidateQueries({ queryKey: ["signalements"] });
       qc.invalidateQueries({ queryKey: ["commentaires"] });
       qc.invalidateQueries({ queryKey: ["fil"] });
       qc.invalidateQueries({ queryKey: ["mes-publications"] });
       qc.invalidateQueries({ queryKey: ["publications-profil"] });
       qc.invalidateQueries({ queryKey: ["videos"] });
+
+      // Fermer la modal
+      onClose();
+
+      // Afficher le toast après un léger délai (pour la transition)
       setTimeout(() => {
-        onClose();
-      }, 1800);
+        afficherToast(
+          "Ton signalement a été envoyé. Un modérateur va l'examiner.",
+          {
+            type: "success",
+            titre: "Merci pour ton signalement",
+            duree: 5000,
+          }
+        );
+      }, 200);
     },
     onError: (err) => {
-      alert("Erreur : " + (err.response?.data?.detail || err.message));
+      const detail = err.response?.data?.detail;
+      if (err.response?.data?.deja_traite || (detail && detail.includes("déjà"))) {
+        alert("Ce contenu a déjà été examiné par un modérateur. Il ne peut plus être signalé.");
+      } else {
+        alert("Erreur : " + (detail || err.message));
+      }
+      onClose();
     },
   });
 
@@ -80,26 +99,6 @@ function ModalSignalement({ cibleType, cibleId, onClose }) {
       motif,
       details,
     });
-  }
-
-  if (merci) {
-    return (
-      <div className="signal-overlay" onClick={onClose}>
-        <div
-          className="signal-card"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="signal-merci">
-            <div className="signal-merci-icon">🙏</div>
-            <h3>Merci pour ton signalement</h3>
-            <p className="sub">
-              Notre équipe de modération va examiner ce contenu dans les plus
-              brefs délais.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (

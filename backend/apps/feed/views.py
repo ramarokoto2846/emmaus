@@ -89,6 +89,68 @@ class PublicationViewSet(viewsets.ModelViewSet):
         return Response({"amen": True})
 
 
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def repartager(self, request, pk=None):
+        """Republie une publication sur son propre mur (self ou autre)."""
+        publication = self.get_object()
+
+        # Éviter les doublons
+        deja_republie = Publication.objects.filter(
+            auteur=request.user,
+            publication_origine=publication,
+            type="partage",
+        ).exists()
+
+        if deja_republie:
+            return Response(
+                {"detail": "Tu as déjà repartagé cette publication."},
+                status=400,
+            )
+
+        # Créer la publication de repartage
+        nouvelle = Publication.objects.create(
+            auteur=request.user,
+            texte=request.data.get("texte", ""),
+            publication_origine=publication,
+            type="partage",
+            visibilite="public",
+        )
+
+        # Incrémenter le compteur de partages de l'original
+        Publication.objects.filter(pk=publication.pk).update(
+            nb_partages=F("nb_partages") + 1
+        )
+
+        # Notifier l'auteur original (seulement si ce n'est pas soi-même)
+        if publication.auteur != request.user:
+            creer_notification(
+                destinataire=publication.auteur,
+                acteur=request.user,
+                type="partage",
+                cible_type="repartage",       # ← nouveau type
+                cible_id=nouvelle.id,          # ← pointe vers le REPARTAGE
+            )
+
+        return Response(
+            {
+                "id": str(nouvelle.id),
+                "detail": "Publication repartagée sur ton mur.",
+            },
+            status=201,
+        )
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def verifier_repartage(self, request, pk=None):
+        """Vérifie si l'utilisateur a déjà republié cette publication."""
+        publication = self.get_object()
+        existe = Publication.objects.filter(
+            auteur=request.user,
+            publication_origine=publication,
+            type="partage",
+        ).exists()
+        return Response({"deja_republie": existe})
+
 class CommentaireViewSet(viewsets.ModelViewSet):
     serializer_class = CommentaireSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, EstAuteurOuLectureSeule]
@@ -136,14 +198,128 @@ class CommentaireViewSet(viewsets.ModelViewSet):
 
 
 class EnregistrementViewSet(viewsets.ModelViewSet):
+    """Marque-pages : l'utilisateur enregistre des publications ou vidéos."""
     permission_classes = [IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
-        return Enregistrement.objects.filter(utilisateur=self.request.user)
+        return (
+            Enregistrement.objects
+            .filter(utilisateur=self.request.user)
+            .order_by("-cree_le")
+        )
 
-    def perform_create(self, serializer):
-        serializer.save(utilisateur=self.request.user)
+    def create(self, request, *args, **kwargs):
+        """Toggle : si déjà enregistré, on retire ; sinon, on ajoute."""
+        cible_type = request.data.get("cible_type")
+        cible_id = request.data.get("cible_id")
 
+        if not cible_type or not cible_id:
+            return Response(
+                {"detail": "cible_type et cible_id sont requis."},
+                status=400,
+            )
+
+        obj, created = Enregistrement.objects.get_or_create(
+            utilisateur=request.user,
+            cible_type=cible_type,
+            cible_id=cible_id,
+            defaults={"collection": request.data.get("collection", "")},
+        )
+
+        if not created:
+            obj.delete()
+            return Response(
+                {"enregistre": False, "detail": "Retiré des enregistrements."}
+            )
+
+        return Response(
+            {
+                "enregistre": True,
+                "id": str(obj.id),
+                "detail": "Contenu enregistré.",
+            },
+            status=201,
+        )
+
+    @action(detail=False, methods=["get"])
+    def compter(self, request):
+        """Compte les enregistrements de l'utilisateur."""
+        n = Enregistrement.objects.filter(utilisateur=request.user).count()
+        return Response({"total": n})
+
+    @action(detail=False, methods=["get"])
+    def verifier(self, request):
+        """Vérifie si un contenu est enregistré."""
+        cible_type = request.query_params.get("cible_type")
+        cible_id = request.query_params.get("cible_id")
+        if not cible_type or not cible_id:
+            return Response(
+                {"detail": "cible_type et cible_id sont requis."}, status=400
+            )
+
+        existe = Enregistrement.objects.filter(
+            utilisateur=request.user,
+            cible_type=cible_type,
+            cible_id=cible_id,
+        ).exists()
+        return Response({"enregistre": existe})
+
+    @action(detail=False, methods=["get"])
+    def liste(self, request):
+        """Récupère la liste des enregistrements avec les contenus complets."""
+        from apps.videos.models import Video
+
+        enregistrements = self.get_queryset()
+        publication_ids = []
+        video_ids = []
+
+        for e in enregistrements:
+            if e.cible_type == "publication":
+                publication_ids.append(e.cible_id)
+            elif e.cible_type == "video":
+                video_ids.append(e.cible_id)
+
+        publications_map = {
+            str(p.id): p
+            for p in Publication.objects.filter(id__in=publication_ids).select_related(
+                "auteur__profil", "video", "verset"
+            )
+        }
+
+        videos_map = {
+            str(v.id): v
+            for v in Video.objects.filter(id__in=video_ids).select_related(
+                "auteur__profil"
+            )
+        }
+
+        resultats = []
+        for e in enregistrements:
+            if e.cible_type == "publication" and str(e.cible_id) in publications_map:
+                from .serializers import PublicationSerializer
+                pub = publications_map[str(e.cible_id)]
+                resultats.append({
+                    "enregistrement_id": str(e.id),
+                    "cible_type": "publication",
+                    "cree_le": e.cree_le,
+                    "publication": PublicationSerializer(
+                        pub, context={"request": request}
+                    ).data,
+                })
+            elif e.cible_type == "video" and str(e.cible_id) in videos_map:
+                from apps.videos.serializers import VideoDetailSerializer
+                vid = videos_map[str(e.cible_id)]
+                resultats.append({
+                    "enregistrement_id": str(e.id),
+                    "cible_type": "video",
+                    "cree_le": e.cree_le,
+                    "video": VideoDetailSerializer(
+                        vid, context={"request": request}
+                    ).data,
+                })
+
+        return Response(resultats)
 
 class PartageViewSet(viewsets.ModelViewSet):
     serializer_class = PartageSerializer

@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import Avatar from "../ui/Avatar";
+import NomUtilisateur from "../ui/NomUtilisateur";
 
 export default function ListeProfils({ titre, profils, onClose }) {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function ListeProfils({ titre, profils, onClose }) {
               >
                 <Avatar profil={p} size="sm" />
                 <div>
-                  <b>{p.nom_affiche}</b>
+                  <NomUtilisateur profil={p} taille="sm" />
                   <small>{p.sous_titre || p.ville || "Membre Emmaüs"}</small>
                 </div>
               </button>

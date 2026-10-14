@@ -16,6 +16,68 @@ class SignalementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filterset_fields = ["statut", "motif", "cible_type"]
 
+    def create(self, request, *args, **kwargs):
+        """Refuse un signalement si la cible a déjà été examinée par un modérateur."""
+        cible_type = request.data.get("cible_type")
+        cible_id = request.data.get("cible_id")
+
+        if cible_type and cible_id:
+            # Vérifier le champ moderation_verifiee directement sur la cible
+            deja_verifiee = False
+
+            if cible_type == "publication":
+                from apps.feed.models import Publication
+                pub = Publication.objects.filter(pk=cible_id).first()
+                if pub and pub.moderation_verifiee:
+                    deja_verifiee = True
+
+            elif cible_type == "video":
+                from apps.videos.models import Video
+                v = Video.objects.filter(pk=cible_id).first()
+                if v and v.moderation_verifiee:
+                    deja_verifiee = True
+
+            elif cible_type == "commentaire":
+                from apps.feed.models import Commentaire
+                c = Commentaire.objects.filter(pk=cible_id).first()
+                if c and c.moderation_verifiee:
+                    deja_verifiee = True
+
+            if deja_verifiee:
+                return Response(
+                    {
+                        "detail": "Ce contenu a déjà été examiné par un modérateur.",
+                        "deja_traite": True,
+                    },
+                    status=400,
+                )
+
+        return super().create(request, *args, **kwargs)
+
+
+    def create(self, request, *args, **kwargs):
+        """Refuse un signalement si la cible a déjà été examinée par un admin."""
+        cible_type = request.data.get("cible_type")
+        cible_id = request.data.get("cible_id")
+
+        if cible_type and cible_id:
+            deja_traite = Signalement.objects.filter(
+                cible_type=cible_type,
+                cible_id=cible_id,
+                statut="traite",
+            ).exists()
+
+            if deja_traite:
+                return Response(
+                    {
+                        "detail": "Ce contenu a déjà été examiné par un modérateur.",
+                        "deja_traite": True,
+                    },
+                    status=400,
+                )
+
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         sig = serializer.save(auteur=self.request.user)
 
@@ -100,17 +162,26 @@ class SignalementViewSet(viewsets.ModelViewSet):
 
         if sig.cible_type == "publication":
             from apps.feed.models import Publication
-            Publication.objects.filter(pk=sig.cible_id).update(visibilite="public")
+            Publication.objects.filter(pk=sig.cible_id).update(
+                visibilite="public",
+                moderation_verifiee=True,
+            )
         elif sig.cible_type == "video":
             from apps.videos.models import Video, StatutVideo
-            Video.objects.filter(pk=sig.cible_id).update(statut=StatutVideo.PUBLIE)
+            Video.objects.filter(pk=sig.cible_id).update(
+                statut=StatutVideo.PUBLIE,
+                moderation_verifiee=True,
+            )
         elif sig.cible_type == "commentaire":
             from apps.feed.models import Commentaire, Publication
             from django.db.models import F
             c = Commentaire.objects.filter(pk=sig.cible_id).first()
-            if c and c.statut != "visible":
-                Commentaire.objects.filter(pk=c.pk).update(statut="visible")
-                if c.cible_type == "publication":
+            if c:
+                Commentaire.objects.filter(pk=c.pk).update(
+                    statut="visible",
+                    moderation_verifiee=True,
+                )
+                if c.statut != "visible" and c.cible_type == "publication":
                     Publication.objects.filter(pk=c.cible_id).update(
                         nb_commentaires=F("nb_commentaires") + 1
                     )
@@ -212,23 +283,85 @@ class ModerationViewSet(viewsets.GenericViewSet):
     def _charger_cible(self, s):
         if s.cible_type == "publication":
             from apps.feed.models import Publication
-            pub = Publication.objects.filter(pk=s.cible_id).select_related(
-                "auteur__profil"
-            ).first()
+            from apps.videos.models import Video
+
+            pub = (
+                Publication.objects
+                .filter(pk=s.cible_id)
+                .select_related("auteur__profil", "video", "verset")
+                .first()
+            )
             if not pub:
                 return None
+
+            # Infos de la vidéo liée (si présente)
+            video_data = None
+            if pub.video_id:
+                v = pub.video
+                fichier_url = None
+                miniature_url = None
+
+                if v.fichier:
+                    try:
+                        fichier_url = self.request.build_absolute_uri(v.fichier.url)
+                    except Exception:
+                        fichier_url = v.fichier_url or None
+                elif v.fichier_url:
+                    fichier_url = v.fichier_url
+
+                if v.miniature:
+                    try:
+                        miniature_url = self.request.build_absolute_uri(v.miniature.url)
+                    except Exception:
+                        miniature_url = v.miniature_url or None
+                elif v.miniature_url:
+                    miniature_url = v.miniature_url
+
+                video_data = {
+                    "id": str(v.id),
+                    "titre": v.titre,
+                    "description": v.description,
+                    "fichier_url": fichier_url,
+                    "miniature_url": miniature_url,
+                    "duree_secondes": v.duree_secondes,
+                    "duree": (
+                        f"{v.duree_secondes // 60}:{v.duree_secondes % 60:02d}"
+                        if v.duree_secondes
+                        else None
+                    ),
+                    "type": v.type,
+                    "format": v.format,
+                    "statut": v.statut,
+                }
+
+            # Infos du verset lié (si présent)
+            verset_data = None
+            if pub.verset_id:
+                vs = pub.verset
+                verset_data = {
+                    "id": vs.id,
+                    "livre": vs.livre,
+                    "chapitre": vs.chapitre,
+                    "verset_debut": vs.verset_debut,
+                    "verset_fin": vs.verset_fin,
+                    "traduction": vs.traduction,
+                    "texte": vs.texte,
+                    "reference": vs.reference,
+                }
+
             return {
                 "type": "publication",
                 "id": str(pub.id),
                 "texte": pub.texte,
                 "visibilite": pub.visibilite,
                 "cree_le": pub.cree_le,
+                "video": video_data,
+                "verset": verset_data,
                 "auteur": {
                     "id": str(pub.auteur.id),
                     "pseudo": pub.auteur.pseudo,
                     "nom_affiche": pub.auteur.profil.nom_affiche,
                 },
-                "video": str(pub.video_id) if pub.video_id else None,
             }
         elif s.cible_type == "video":
             from apps.videos.models import Video
@@ -237,6 +370,26 @@ class ModerationViewSet(viewsets.GenericViewSet):
             ).first()
             if not v:
                 return None
+
+            # URLs absolues
+            fichier_url = None
+            miniature_url = None
+            if v.fichier:
+                try:
+                    fichier_url = self.request.build_absolute_uri(v.fichier.url)
+                except Exception:
+                    fichier_url = v.fichier_url or None
+            elif v.fichier_url:
+                fichier_url = v.fichier_url
+
+            if v.miniature:
+                try:
+                    miniature_url = self.request.build_absolute_uri(v.miniature.url)
+                except Exception:
+                    miniature_url = v.miniature_url or None
+            elif v.miniature_url:
+                miniature_url = v.miniature_url
+
             return {
                 "type": "video",
                 "id": str(v.id),
@@ -244,6 +397,13 @@ class ModerationViewSet(viewsets.GenericViewSet):
                 "description": v.description,
                 "statut": v.statut,
                 "cree_le": v.cree_le,
+                "fichier_url": fichier_url,
+                "miniature_url": miniature_url,
+                "duree": (
+                    f"{v.duree_secondes // 60}:{v.duree_secondes % 60:02d}"
+                    if v.duree_secondes
+                    else None
+                ),
                 "auteur": {
                     "id": str(v.auteur.id),
                     "pseudo": v.auteur.pseudo,
@@ -271,6 +431,15 @@ class ModerationViewSet(viewsets.GenericViewSet):
             }
         return None
 
+    @action(detail=False, methods=["get"])
+    def compter(self, request):
+        """Compte les signalements ouverts (pour badge)."""
+        if not self._verifier_role(request):
+            return Response({"detail": "Non autorisé."}, status=403)
+
+        n = Signalement.objects.filter(statut="ouvert").count()
+        return Response({"ouverts": n})
+
     @action(detail=False, methods=["post"])
     def remettre(self, request):
         """Remettre la cible en ligne."""
@@ -288,17 +457,26 @@ class ModerationViewSet(viewsets.GenericViewSet):
 
         if sig.cible_type == "publication":
             from apps.feed.models import Publication
-            Publication.objects.filter(pk=sig.cible_id).update(visibilite="public")
+            Publication.objects.filter(pk=sig.cible_id).update(
+                visibilite="public",
+                moderation_verifiee=True,
+            )
         elif sig.cible_type == "video":
             from apps.videos.models import Video, StatutVideo
-            Video.objects.filter(pk=sig.cible_id).update(statut=StatutVideo.PUBLIE)
+            Video.objects.filter(pk=sig.cible_id).update(
+                statut=StatutVideo.PUBLIE,
+                moderation_verifiee=True,
+            )
         elif sig.cible_type == "commentaire":
             from apps.feed.models import Commentaire, Publication
             from django.db.models import F
             c = Commentaire.objects.filter(pk=sig.cible_id).first()
-            if c and c.statut != "visible":
-                Commentaire.objects.filter(pk=c.pk).update(statut="visible")
-                if c.cible_type == "publication":
+            if c:
+                Commentaire.objects.filter(pk=c.pk).update(
+                    statut="visible",
+                    moderation_verifiee=True,
+                )
+                if c.statut != "visible" and c.cible_type == "publication":
                     Publication.objects.filter(pk=c.cible_id).update(
                         nb_commentaires=F("nb_commentaires") + 1
                     )
@@ -328,6 +506,17 @@ class ModerationViewSet(viewsets.GenericViewSet):
         except Signalement.DoesNotExist:
             return Response({"detail": "Signalement introuvable."}, status=404)
 
+        # Marquer la cible comme vérifiée (peu importe la décision)
+        if sig.cible_type == "publication":
+            from apps.feed.models import Publication
+            Publication.objects.filter(pk=sig.cible_id).update(moderation_verifiee=True)
+        elif sig.cible_type == "video":
+            from apps.videos.models import Video
+            Video.objects.filter(pk=sig.cible_id).update(moderation_verifiee=True)
+        elif sig.cible_type == "commentaire":
+            from apps.feed.models import Commentaire
+            Commentaire.objects.filter(pk=sig.cible_id).update(moderation_verifiee=True)
+
         Signalement.objects.filter(
             cible_type=sig.cible_type, cible_id=sig.cible_id, statut="ouvert"
         ).update(statut="traite", traite_par=request.user)
@@ -336,33 +525,85 @@ class ModerationViewSet(viewsets.GenericViewSet):
 
         return Response({"status": "confirme"})
 
+
+    @action(detail=False, methods=["post"])
+    def supprimer_definitif(self, request):
+        """Supprime définitivement le contenu signalé."""
+        if not self._verifier_role(request):
+            return Response({"detail": "Non autorisé."}, status=403)
+
+        sig_id = request.data.get("signalement_id")
+        if not sig_id:
+            return Response({"detail": "signalement_id requis."}, status=400)
+
+        try:
+            sig = Signalement.objects.get(pk=sig_id)
+        except Signalement.DoesNotExist:
+            return Response({"detail": "Signalement introuvable."}, status=404)
+
+        # Notifier l'auteur AVANT suppression
+        self._notifier_auteur(sig, "supprimee")
+
+        # Supprimer définitivement le contenu
+        if sig.cible_type == "publication":
+            from apps.feed.models import Publication
+            Publication.objects.filter(pk=sig.cible_id).delete()
+        elif sig.cible_type == "video":
+            from apps.videos.models import Video
+            Video.objects.filter(pk=sig.cible_id).delete()
+        elif sig.cible_type == "commentaire":
+            from apps.feed.models import Commentaire
+            Commentaire.objects.filter(pk=sig.cible_id).delete()
+
+        # Marquer les signalements comme traités
+        Signalement.objects.filter(
+            cible_type=sig.cible_type,
+            cible_id=sig.cible_id,
+            statut="ouvert",
+        ).update(statut="traite", traite_par=request.user)
+
+        return Response({"status": "supprime"})
+
     def _notifier_auteur(self, sig, action):
+        """Notifie l'auteur de la décision du modérateur."""
         from apps.feed.models import Publication, Commentaire
         from apps.videos.models import Video
         from apps.notifications.services import creer_notification
 
         auteur = None
-        if sig.cible_type == "publication":
-            pub = Publication.objects.filter(pk=sig.cible_id).first()
+        cible_type = sig.cible_type
+        cible_id = sig.cible_id
+
+        if cible_type == "publication":
+            pub = Publication.objects.filter(pk=cible_id).first()
             auteur = pub.auteur if pub else None
-        elif sig.cible_type == "video":
-            v = Video.objects.filter(pk=sig.cible_id).first()
+        elif cible_type == "video":
+            v = Video.objects.filter(pk=cible_id).first()
             auteur = v.auteur if v else None
-        elif sig.cible_type == "commentaire":
-            c = Commentaire.objects.filter(pk=sig.cible_id).first()
+        elif cible_type == "commentaire":
+            c = Commentaire.objects.filter(pk=cible_id).first()
             auteur = c.auteur if c else None
 
         if not auteur:
             return
 
+        # Le type de notification dépend de l'action
+        if action == "remise":
+            type_notif = "signalement_leve"
+        elif action == "confirmee":
+            type_notif = "signalement_confirme"
+        elif action == "supprimee":
+            type_notif = "suppression_contenu"
+        else:
+            type_notif = "signalement"
+
         creer_notification(
             destinataire=auteur,
             acteur=None,
-            type="signalement",
-            cible_type=sig.cible_type,
-            cible_id=sig.cible_id,
+            type=type_notif,
+            cible_type=cible_type,
+            cible_id=cible_id,
         )
-
 
 class ModerationViewSet(viewsets.GenericViewSet):
     """Espace modérateur : examiner, remettre, confirmer."""
@@ -420,23 +661,85 @@ class ModerationViewSet(viewsets.GenericViewSet):
     def _charger_cible(self, s):
         if s.cible_type == "publication":
             from apps.feed.models import Publication
-            pub = Publication.objects.filter(pk=s.cible_id).select_related(
-                "auteur__profil"
-            ).first()
+            from apps.videos.models import Video
+
+            pub = (
+                Publication.objects
+                .filter(pk=s.cible_id)
+                .select_related("auteur__profil", "video", "verset")
+                .first()
+            )
             if not pub:
                 return None
+
+            # Infos de la vidéo liée (si présente)
+            video_data = None
+            if pub.video_id:
+                v = pub.video
+                fichier_url = None
+                miniature_url = None
+
+                if v.fichier:
+                    try:
+                        fichier_url = self.request.build_absolute_uri(v.fichier.url)
+                    except Exception:
+                        fichier_url = v.fichier_url or None
+                elif v.fichier_url:
+                    fichier_url = v.fichier_url
+
+                if v.miniature:
+                    try:
+                        miniature_url = self.request.build_absolute_uri(v.miniature.url)
+                    except Exception:
+                        miniature_url = v.miniature_url or None
+                elif v.miniature_url:
+                    miniature_url = v.miniature_url
+
+                video_data = {
+                    "id": str(v.id),
+                    "titre": v.titre,
+                    "description": v.description,
+                    "fichier_url": fichier_url,
+                    "miniature_url": miniature_url,
+                    "duree_secondes": v.duree_secondes,
+                    "duree": (
+                        f"{v.duree_secondes // 60}:{v.duree_secondes % 60:02d}"
+                        if v.duree_secondes
+                        else None
+                    ),
+                    "type": v.type,
+                    "format": v.format,
+                    "statut": v.statut,
+                }
+
+            # Infos du verset lié (si présent)
+            verset_data = None
+            if pub.verset_id:
+                vs = pub.verset
+                verset_data = {
+                    "id": vs.id,
+                    "livre": vs.livre,
+                    "chapitre": vs.chapitre,
+                    "verset_debut": vs.verset_debut,
+                    "verset_fin": vs.verset_fin,
+                    "traduction": vs.traduction,
+                    "texte": vs.texte,
+                    "reference": vs.reference,
+                }
+
             return {
                 "type": "publication",
                 "id": str(pub.id),
                 "texte": pub.texte,
                 "visibilite": pub.visibilite,
                 "cree_le": pub.cree_le,
+                "video": video_data,
+                "verset": verset_data,
                 "auteur": {
                     "id": str(pub.auteur.id),
                     "pseudo": pub.auteur.pseudo,
                     "nom_affiche": pub.auteur.profil.nom_affiche,
                 },
-                "video": str(pub.video_id) if pub.video_id else None,
             }
         elif s.cible_type == "video":
             from apps.videos.models import Video
@@ -445,6 +748,26 @@ class ModerationViewSet(viewsets.GenericViewSet):
             ).first()
             if not v:
                 return None
+
+            # URLs absolues
+            fichier_url = None
+            miniature_url = None
+            if v.fichier:
+                try:
+                    fichier_url = self.request.build_absolute_uri(v.fichier.url)
+                except Exception:
+                    fichier_url = v.fichier_url or None
+            elif v.fichier_url:
+                fichier_url = v.fichier_url
+
+            if v.miniature:
+                try:
+                    miniature_url = self.request.build_absolute_uri(v.miniature.url)
+                except Exception:
+                    miniature_url = v.miniature_url or None
+            elif v.miniature_url:
+                miniature_url = v.miniature_url
+
             return {
                 "type": "video",
                 "id": str(v.id),
@@ -452,6 +775,13 @@ class ModerationViewSet(viewsets.GenericViewSet):
                 "description": v.description,
                 "statut": v.statut,
                 "cree_le": v.cree_le,
+                "fichier_url": fichier_url,
+                "miniature_url": miniature_url,
+                "duree": (
+                    f"{v.duree_secondes // 60}:{v.duree_secondes % 60:02d}"
+                    if v.duree_secondes
+                    else None
+                ),
                 "auteur": {
                     "id": str(v.auteur.id),
                     "pseudo": v.auteur.pseudo,
@@ -479,6 +809,15 @@ class ModerationViewSet(viewsets.GenericViewSet):
             }
         return None
 
+    @action(detail=False, methods=["get"])
+    def compter(self, request):
+        """Compte les signalements ouverts (pour badge)."""
+        if not self._verifier_role(request):
+            return Response({"detail": "Non autorisé."}, status=403)
+
+        n = Signalement.objects.filter(statut="ouvert").count()
+        return Response({"ouverts": n})
+
     @action(detail=False, methods=["post"])
     def remettre(self, request):
         """Remettre la cible en ligne."""
@@ -496,17 +835,26 @@ class ModerationViewSet(viewsets.GenericViewSet):
 
         if sig.cible_type == "publication":
             from apps.feed.models import Publication
-            Publication.objects.filter(pk=sig.cible_id).update(visibilite="public")
+            Publication.objects.filter(pk=sig.cible_id).update(
+                visibilite="public",
+                moderation_verifiee=True,
+            )
         elif sig.cible_type == "video":
             from apps.videos.models import Video, StatutVideo
-            Video.objects.filter(pk=sig.cible_id).update(statut=StatutVideo.PUBLIE)
+            Video.objects.filter(pk=sig.cible_id).update(
+                statut=StatutVideo.PUBLIE,
+                moderation_verifiee=True,
+            )
         elif sig.cible_type == "commentaire":
             from apps.feed.models import Commentaire, Publication
             from django.db.models import F
             c = Commentaire.objects.filter(pk=sig.cible_id).first()
-            if c and c.statut != "visible":
-                Commentaire.objects.filter(pk=c.pk).update(statut="visible")
-                if c.cible_type == "publication":
+            if c:
+                Commentaire.objects.filter(pk=c.pk).update(
+                    statut="visible",
+                    moderation_verifiee=True,
+                )
+                if c.statut != "visible" and c.cible_type == "publication":
                     Publication.objects.filter(pk=c.cible_id).update(
                         nb_commentaires=F("nb_commentaires") + 1
                     )
@@ -536,6 +884,17 @@ class ModerationViewSet(viewsets.GenericViewSet):
         except Signalement.DoesNotExist:
             return Response({"detail": "Signalement introuvable."}, status=404)
 
+        # Marquer la cible comme vérifiée (peu importe la décision)
+        if sig.cible_type == "publication":
+            from apps.feed.models import Publication
+            Publication.objects.filter(pk=sig.cible_id).update(moderation_verifiee=True)
+        elif sig.cible_type == "video":
+            from apps.videos.models import Video
+            Video.objects.filter(pk=sig.cible_id).update(moderation_verifiee=True)
+        elif sig.cible_type == "commentaire":
+            from apps.feed.models import Commentaire
+            Commentaire.objects.filter(pk=sig.cible_id).update(moderation_verifiee=True)
+
         Signalement.objects.filter(
             cible_type=sig.cible_type, cible_id=sig.cible_id, statut="ouvert"
         ).update(statut="traite", traite_par=request.user)
@@ -543,6 +902,45 @@ class ModerationViewSet(viewsets.GenericViewSet):
         self._notifier_auteur(sig, "confirmee")
 
         return Response({"status": "confirme"})
+
+
+    @action(detail=False, methods=["post"])
+    def supprimer_definitif(self, request):
+        """Supprime définitivement le contenu signalé."""
+        if not self._verifier_role(request):
+            return Response({"detail": "Non autorisé."}, status=403)
+
+        sig_id = request.data.get("signalement_id")
+        if not sig_id:
+            return Response({"detail": "signalement_id requis."}, status=400)
+
+        try:
+            sig = Signalement.objects.get(pk=sig_id)
+        except Signalement.DoesNotExist:
+            return Response({"detail": "Signalement introuvable."}, status=404)
+
+        # Notifier l'auteur AVANT suppression
+        self._notifier_auteur(sig, "supprimee")
+
+        # Supprimer définitivement le contenu
+        if sig.cible_type == "publication":
+            from apps.feed.models import Publication
+            Publication.objects.filter(pk=sig.cible_id).delete()
+        elif sig.cible_type == "video":
+            from apps.videos.models import Video
+            Video.objects.filter(pk=sig.cible_id).delete()
+        elif sig.cible_type == "commentaire":
+            from apps.feed.models import Commentaire
+            Commentaire.objects.filter(pk=sig.cible_id).delete()
+
+        # Marquer les signalements comme traités
+        Signalement.objects.filter(
+            cible_type=sig.cible_type,
+            cible_id=sig.cible_id,
+            statut="ouvert",
+        ).update(statut="traite", traite_par=request.user)
+
+        return Response({"status": "supprime"})
 
     def _notifier_auteur(self, sig, action):
         from apps.feed.models import Publication, Commentaire

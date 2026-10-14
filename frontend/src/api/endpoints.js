@@ -143,6 +143,8 @@ export const moderationSignalements = () =>
   api.get("/moderation/signalements_ouverts/").then((r) => r.data);
 export const moderationRemettre = (signalementId) =>
   api.post("/moderation/remettre/", { signalement_id: signalementId }).then((r) => r.data);
+export const moderationSupprimerDefinitif = (signalementId) =>
+  api.post("/moderation/supprimer_definitif/", { signalement_id: signalementId }).then((r) => r.data);
 export const moderationConfirmer = (signalementId) =>
   api.post("/moderation/confirmer/", { signalement_id: signalementId }).then((r) => r.data);
 
@@ -188,3 +190,41 @@ export const uploadVideo = (formData, onProgress) => {
     })
     .then((r) => r.data);
 };
+
+// --- Modération : compteur
+export const compterSignalements = () =>
+  api.get("/moderation/compter/").then((r) => r.data);
+
+// --- Notifications : suppression
+export const supprimerNotification = (id) =>
+  api.delete(`/notifications/${id}/`).then((r) => r.data);
+export const toutSupprimerNotifications = () =>
+  api.post("/notifications/tout_supprimer/").then((r) => r.data);
+
+// --- Modération : gestion des modérateurs (admin)
+export const promouvoirModerateur = (userId) =>
+  api.post(`/profils/${userId}/promouvoir_moderateur/`).then((r) => r.data);
+export const retrograderModerateur = (userId) =>
+  api.post(`/profils/${userId}/retrograder_moderateur/`).then((r) => r.data);
+export const listeModerateurs = () =>
+  api.get("/profils/moderateurs/").then((r) => r.data);
+
+// --- Enregistrements
+export const enregistrerContenu = (data) =>
+  api.post("/enregistrements/", data).then((r) => r.data);
+export const compterEnregistrements = () =>
+  api.get("/enregistrements/compter/").then((r) => r.data);
+export const verifierEnregistrement = (cibleType, cibleId) =>
+  api
+    .get("/enregistrements/verifier/", {
+      params: { cible_type: cibleType, cible_id: cibleId },
+    })
+    .then((r) => r.data);
+export const listeEnregistrements = () =>
+  api.get("/enregistrements/liste/").then((r) => r.data);
+
+// --- Repartage
+export const repartager = (id, texte = "") =>
+  api.post(`/publications/${id}/repartager/`, { texte }).then((r) => r.data);
+export const verifierRepartage = (id) =>
+  api.get(`/publications/${id}/verifier_repartage/`).then((r) => r.data);

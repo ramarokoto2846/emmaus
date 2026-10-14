@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Avatar from "../components/ui/Avatar";
+import { useToast } from "../components/ui/Toast";
+import { useConfirmation } from "../components/ui/Confirmation";
+import NomUtilisateur from "../components/ui/NomUtilisateur";
 import Button from "../components/ui/Button";
 import Icon from "../components/ui/Icon";
 import Post from "../components/feed/Post";
 import ListeProfils from "../components/profile/ListeProfils";
 import { useEstMoi } from "../hooks/useAuth";
+import { useAuthStore } from "../store/authStore";
 import {
   profil,
   suivre,
@@ -15,12 +19,17 @@ import {
   demarrerConversation,
   abonnesDe,
   abonnementsDe,
+  promouvoirModerateur,
+  retrograderModerateur,
 } from "../api/endpoints";
 
 export default function Profile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const confirmer = useConfirmation();
+  const { afficher: afficherToast } = useToast();
   const [onglet, setOnglet] = useState("videos");
   const [modale, setModale] = useState(null);
 
@@ -50,6 +59,76 @@ export default function Profile() {
   });
 
   const estMoi = useEstMoi(p);
+  const estAdmin = user?.role === "admin";
+
+  const mutationRole = useMutation({
+    mutationFn: ({ userId, action }) =>
+      action === "promouvoir"
+        ? promouvoirModerateur(userId)
+        : retrograderModerateur(userId),
+    onSuccess: (data, variables) => {
+      qc.invalidateQueries({ queryKey: ["profil", id] });
+      qc.invalidateQueries({ queryKey: ["moderateurs"] });
+      qc.invalidateQueries({ queryKey: ["fil"] });
+      qc.invalidateQueries({ queryKey: ["commentaires"] });
+      qc.invalidateQueries({ queryKey: ["notifications-list"] });
+
+      if (variables.action === "promouvoir") {
+        afficherToast(
+          `${p.nom_affiche} est maintenant modérateur de la communauté.`,
+          {
+            type: "success",
+            titre: "🎉 Modérateur nommé",
+            duree: 5000,
+          }
+        );
+      } else {
+        afficherToast(
+          `${p.nom_affiche} n'est plus modérateur.`,
+          {
+            type: "info",
+            titre: "Rôle retiré",
+            duree: 5000,
+          }
+        );
+      }
+    },
+    onError: (err) => {
+      afficherToast(
+        err.response?.data?.detail || "Erreur lors du changement de rôle.",
+        {
+          type: "error",
+          titre: "Erreur",
+        }
+      );
+    },
+  });
+
+  async function handlePromouvoir() {
+    const ok = await confirmer({
+      titre: "Nommer modérateur ?",
+      message: `${p.nom_affiche} pourra examiner les signalements et modérer les contenus. Choisis uniquement des personnes de confiance.`,
+      labelConfirmer: "Nommer modérateur",
+      labelAnnuler: "Annuler",
+      danger: false,
+    });
+    if (ok) {
+      mutationRole.mutate({ userId: p.id, action: "promouvoir" });
+    }
+  }
+
+  async function handleRetrograder() {
+    const ok = await confirmer({
+      titre: "Retirer le rôle de modérateur ?",
+      message: `${p.nom_affiche} perdra tous ses droits de modération.`,
+      labelConfirmer: "Retirer",
+      labelAnnuler: "Annuler",
+      danger: true,
+    });
+    if (ok) {
+      mutationRole.mutate({ userId: p.id, action: "retrograder" });
+    }
+  }
 
   // Charger les profils pour la modale
   useEffect(() => {
@@ -122,7 +201,7 @@ export default function Profile() {
         <div className="pr">
           <Avatar profil={p} />
           <div>
-            <h1>{p.nom_affiche}</h1>
+            <h1><NomUtilisateur profil={p} /></h1>
             <div className="sub">
               {p.sous_titre || p.ville || "Membre Emmaüs"}
             </div>
@@ -153,6 +232,37 @@ export default function Profile() {
                 <Button variant="alt" onClick={handleMessage}>
                   Message
                 </Button>
+
+                {/* Admin : promotion modérateur */}
+                {estAdmin && p.role !== "admin" && (
+                  <>
+                    {p.role === "moderateur" ? (
+                      <Button
+                        variant="alt"
+                        onClick={handleRetrograder}
+                        disabled={mutationRole.isPending}
+                      >
+                        {mutationRole.isPending
+                          ? "…"
+                          : "Retirer modérateur"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        onClick={handlePromouvoir}
+                        disabled={mutationRole.isPending}
+                        style={{
+                          background: "#8B5A00",
+                          color: "#fff",
+                        }}
+                      >
+                        {mutationRole.isPending
+                          ? "…"
+                          : "Nommer modérateur"}
+                      </Button>
+                    )}
+                  </>
+                )}
               </>
             )}
           </div>
@@ -264,7 +374,16 @@ export default function Profile() {
           <div className="info-grid">
             <Info label="Nom affiché" value={p.nom_affiche} />
             <Info label="Pseudo" value={`@${p.pseudo}`} />
-            <Info label="Rôle" value={p.role || "membre"} />
+            <Info
+              label="Rôle"
+              value={
+                p.role === "moderateur"
+                  ? "🛡️ Modérateur"
+                  : p.role === "admin"
+                  ? "👑 Administrateur"
+                  : "Membre"
+              }
+            />
             <Info label="Ville" value={p.ville} />
             <Info label="Pays" value={p.pays} />
             <Info label="Site web" value={p.site_web} link />

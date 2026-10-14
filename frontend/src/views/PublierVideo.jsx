@@ -10,6 +10,7 @@ import {
   FiArrowLeft,
 } from "react-icons/fi";
 import { uploadVideo } from "../api/endpoints";
+import { useToast } from "../components/ui/Toast";
 
 const TYPES = [
   { v: "predication", label: "Prédication" },
@@ -23,6 +24,7 @@ const TYPES = [
 export default function PublierVideo() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { afficher: afficherToast } = useToast();
   const [fichier, setFichier] = useState(null);
   const [preview, setPreview] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -50,6 +52,10 @@ export default function PublierVideo() {
       qc.invalidateQueries({ queryKey: ["fil"] });
       qc.invalidateQueries({ queryKey: ["mes-videos"] });
       qc.invalidateQueries({ queryKey: ["mes-publications"] });
+      afficherToast("Ta vidéo est en ligne dans le fil.", {
+        type: "success",
+        titre: "Vidéo publiée",
+      });
     },
     onError: (e) => {
       setPhase("error");

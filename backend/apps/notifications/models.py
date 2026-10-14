@@ -17,6 +17,10 @@ class TypeNotification(models.TextChoices):
     SIGNALEMENT = "signalement"
     SIGNALEMENT_LEVE = "signalement_leve"
     SIGNALEMENT_CONFIRME = "signalement_confirme"
+    PROMOTION_MODERATEUR = "promotion_moderateur"
+    RETROGRADATION = "retrogradation"
+    SUPPRESSION_CONTENU = "suppression_contenu"
+    PARTAGE = "partage"
 
 
 class Notification(UUIDModel):

@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FiEdit2, FiTrash2, FiFlag, FiMoreHorizontal } from "react-icons/fi";
+import { FiEdit2, FiTrash2, FiFlag, FiMoreHorizontal, FiCheckCircle, FiShare2 } from "react-icons/fi";
 import Avatar from "../ui/Avatar";
+import NomUtilisateur from "../ui/NomUtilisateur";
 import Icon from "../ui/Icon";
 import VideoCard from "./VideoCard";
+import PublicationEmbarquee from "./PublicationEmbarquee";
 import CommentairesModal from "./CommentairesModal";
 import Signalement from "../ui/Signalement";
 import { useConfirmation } from "../ui/Confirmation";
+import { useToast } from "../ui/Toast";
+import ConfirmationEnregistrer from "../ui/ConfirmationEnregistrer";
+import PartageModal from "./PartageModal";
 import { useAuthStore } from "../../store/authStore";
 import {
   amenPublication,
+  enregistrerContenu,
   majPublication,
   supprimerPublication,
 } from "../../api/endpoints";
@@ -21,12 +27,15 @@ export default function Post({ publication }) {
   const qc = useQueryClient();
   const monProfil = useAuthStore((s) => s.profil);
   const confirmer = useConfirmation();
+  const { afficher: afficherToast } = useToast();
 
   const [menuOuvert, setMenuOuvert] = useState(false);
   const [editionOuverte, setEditionOuverte] = useState(false);
   const [nouveauTexte, setNouveauTexte] = useState(publication.texte || "");
   const [signalementOuvert, setSignalementOuvert] = useState(false);
   const [commentairesOuverts, setCommentairesOuverts] = useState(false);
+  const [confirmEnregistrerOuverte, setConfirmEnregistrerOuverte] = useState(false);
+  const [partageOuvert, setPartageOuvert] = useState(false);
   const menuRef = useRef(null);
 
   const auteur = publication.auteur;
@@ -62,6 +71,10 @@ export default function Post({ publication }) {
       qc.invalidateQueries({ queryKey: ["fil"] });
       qc.invalidateQueries({ queryKey: ["mes-publications"] });
       qc.invalidateQueries({ queryKey: ["publications-profil"] });
+      afficherToast("Ta publication a été modifiée.", {
+        type: "success",
+        titre: "Publication mise à jour",
+      });
     },
   });
 
@@ -71,8 +84,44 @@ export default function Post({ publication }) {
       qc.invalidateQueries({ queryKey: ["fil"] });
       qc.invalidateQueries({ queryKey: ["mes-publications"] });
       qc.invalidateQueries({ queryKey: ["publications-profil"] });
+      afficherToast("Ta publication a été supprimée.", {
+        type: "success",
+        titre: "Publication supprimée",
+      });
     },
   });
+
+  const enregistrerMutation = useMutation({
+    mutationFn: () =>
+      enregistrerContenu({
+        cible_type: "publication",
+        cible_id: publication.id,
+      }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["enregistrements"] });
+      qc.invalidateQueries({ queryKey: ["enregistrements-count"] });
+      qc.invalidateQueries({ queryKey: ["fil"] });
+
+      afficherToast(
+        data.enregistre
+          ? "Le contenu est ajouté à tes enregistrements."
+          : "Le contenu a été retiré de tes enregistrements.",
+        {
+          type: "success",
+          titre: data.enregistre ? "🔖 Enregistré" : "Retiré",
+        }
+      );
+    },
+  });
+
+  function handleEnregistrer() {
+    setConfirmEnregistrerOuverte(true);
+  }
+
+  function validerEnregistrer() {
+    setConfirmEnregistrerOuverte(false);
+    enregistrerMutation.mutate();
+  }
 
   function enregistrerEdition() {
     const t = nouveauTexte.trim();
@@ -93,7 +142,22 @@ export default function Post({ publication }) {
   }
 
   return (
-    <article className="card post">
+    <article
+      className={`card post ${
+        publication.publication_origine ? "post-repartage" : ""
+      }`}
+    >
+      
+      {/* Bandeau "a partagé" style Facebook */}
+      {publication.publication_origine && (
+        <div className="fb-partage-indicateur">
+          <FiShare2 size={15} />
+          <span>
+            <b>{auteur?.nom_affiche || "Quelqu'un"}</b> a partagé
+          </span>
+        </div>
+      )}
+
       <div className="ph">
         <button
           className="who"
@@ -101,21 +165,31 @@ export default function Post({ publication }) {
         >
           <Avatar profil={auteur} />
           <div>
-            <b>{auteur?.nom_affiche || "Anonyme"}</b>
+            <NomUtilisateur profil={auteur} taille="sm" />
             <br />
             <small>{formatRelative(publication.cree_le)}</small>
           </div>
         </button>
 
-        {/* Menu 3 points */}
+        {/* Menu 3 points OU badge Vérifié */}
         <div className="post-menu" ref={menuRef}>
-          <button
-            className="more"
-            aria-label="Plus d'options"
-            onClick={() => setMenuOuvert((v) => !v)}
-          >
-            <FiMoreHorizontal size={20} />
-          </button>
+          {publication.est_verifiee && !estAuteur ? (
+            <span
+              className="badge-verifie"
+              title="Contenu vérifié par la modération"
+            >
+              <FiCheckCircle size={16} />
+              <span>Vérifié</span>
+            </span>
+          ) : (
+            <button
+              className="more"
+              aria-label="Plus d'options"
+              onClick={() => setMenuOuvert((v) => !v)}
+            >
+              <FiMoreHorizontal size={20} />
+            </button>
+          )}
 
           {menuOuvert && (
             <div className="post-menu-list">
@@ -197,6 +271,10 @@ export default function Post({ publication }) {
         publication.texte && <p>{publication.texte}</p>
       )}
 
+      {publication.publication_origine && (
+        <PublicationEmbarquee origine={publication.publication_origine} />
+      )}
+
       {video && <VideoCard video={video} />}
 
       {verset && (
@@ -218,14 +296,35 @@ export default function Post({ publication }) {
           <Icon name="chat" />
           {publication.nb_commentaires}
         </button>
-        <button>
+        <button onClick={() => setPartageOuvert(true)}>
           <Icon name="share" />
           Partager
         </button>
-        <button className="sv" aria-label="Enregistrer">
+        <button
+          className={`sv ${publication.est_enregistree ? "on" : ""}`}
+          aria-label="Enregistrer"
+          onClick={handleEnregistrer}
+        >
           <Icon name="mark" />
         </button>
       </div>
+
+      {/* Modal partage */}
+      {partageOuvert && (
+        <PartageModal
+          publication={publication}
+          onClose={() => setPartageOuvert(false)}
+        />
+      )}
+
+      {/* Modal enregistrer */}
+      {confirmEnregistrerOuverte && (
+        <ConfirmationEnregistrer
+          dejaEnregistre={publication.est_enregistree}
+          onConfirmer={validerEnregistrer}
+          onAnnuler={() => setConfirmEnregistrerOuverte(false)}
+        />
+      )}
 
       {/* Modal commentaires */}
       {commentairesOuverts && (

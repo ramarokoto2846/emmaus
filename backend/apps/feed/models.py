@@ -37,6 +37,7 @@ class CanalPartage(models.TextChoices):
 
 class Publication(BaseModel):
     auteur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name="publications")
+    moderation_verifiee = models.BooleanField(default=False)
     texte = models.TextField(blank=True)
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, blank=True)
     verset = models.ForeignKey(Verset, on_delete=models.SET_NULL, null=True, blank=True)
@@ -73,6 +74,7 @@ class Amen(models.Model):
 
 class Commentaire(BaseModel):
     auteur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE)
+    moderation_verifiee = models.BooleanField(default=False)
     cible_type = models.CharField(max_length=20, choices=TypeCible.choices)
     cible_id = models.UUIDField()
     parent = models.ForeignKey("self", on_delete=models.CASCADE, null=True, blank=True,

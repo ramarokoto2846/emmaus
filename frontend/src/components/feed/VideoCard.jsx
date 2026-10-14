@@ -5,6 +5,7 @@ import {
   FiVolume2,
   FiVolumeX,
   FiMaximize,
+  FiCheckCircle,
 } from "react-icons/fi";
 import { enregistrerVue } from "../../api/endpoints";
 
@@ -228,7 +229,19 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
 
         {/* Métadonnées sous la vidéo */}
         <div className="vid-meta">
-          <h4 className="vid-meta-titre">{video.titre}</h4>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h4 className="vid-meta-titre" style={{ flex: 1, margin: 0 }}>
+              {video.titre}
+            </h4>
+            {video.est_verifiee && (
+              <span
+                className="badge-verifie badge-verifie-sm"
+                title="Contenu vérifié par la modération"
+              >
+                <FiCheckCircle size={14} />
+              </span>
+            )}
+          </div>
           <div className="vid-meta-infos">
             {video.auteur_nom && (
               <span className="vid-meta-auteur">{video.auteur_nom}</span>

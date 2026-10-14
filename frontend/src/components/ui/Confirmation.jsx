@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { FiAlertTriangle } from "react-icons/fi";
 
 const ConfirmationContext = createContext(null);
@@ -48,7 +49,7 @@ export function ConfirmationProvider({ children }) {
   return (
     <ConfirmationContext.Provider value={{ confirmer }}>
       {children}
-      {state.ouvert && (
+      {state.ouvert && createPortal(
         <div
           className="confirm-overlay"
           onClick={state.onAnnuler}
@@ -79,7 +80,8 @@ export function ConfirmationProvider({ children }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </ConfirmationContext.Provider>
   );

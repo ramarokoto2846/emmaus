@@ -10,7 +10,9 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# --- Apps ---
+# ============================================================
+# APPS
+# ============================================================
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -39,6 +41,10 @@ INSTALLED_APPS = [
     "apps.common",
 ]
 
+# ============================================================
+# MIDDLEWARE
+# ⚠️ CorsMiddleware DOIT être en premier
+# ============================================================
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -52,6 +58,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
+# ============================================================
+# TEMPLATES
+# ============================================================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -70,7 +79,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# --- Base de données ---
+# ============================================================
+# BASE DE DONNÉES
+# ============================================================
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -82,7 +93,9 @@ DATABASES = {
     }
 }
 
-# --- Auth ---
+# ============================================================
+# AUTHENTIFICATION
+# ============================================================
 AUTH_USER_MODEL = "accounts.Utilisateur"
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -92,21 +105,28 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# --- i18n ---
+# ============================================================
+# INTERNATIONALISATION
+# ============================================================
 LANGUAGE_CODE = "fr-fr"
 TIME_ZONE = "Indian/Antananarivo"
 USE_I18N = True
 USE_TZ = True
 
-# --- Fichiers ---
+# ============================================================
+# FICHIERS STATIQUES & MÉDIA
+# ============================================================
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- DRF ---
+# ============================================================
+# DJANGO REST FRAMEWORK
+# ============================================================
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -126,6 +146,9 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.common.exceptions.exception_handler",
 }
 
+# ============================================================
+# JWT
+# ============================================================
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -136,6 +159,9 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "user_id",
 }
 
+# ============================================================
+# DRF SPECTACULAR
+# ============================================================
 SPECTACULAR_SETTINGS = {
     "TITLE": "Emmaüs API",
     "DESCRIPTION": "Réseau social vidéo de la foi",
@@ -143,19 +169,42 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-# --- CORS ---
+# ============================================================
+# CORS
+# ============================================================
 CORS_ALLOWED_ORIGINS = os.getenv(
-    "CORS_ORIGINS", "http://localhost:5173,http://localhost:3000"
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "http://localhost:3000,http://127.0.0.1:3000"
 ).split(",")
+
 CORS_ALLOW_CREDENTIALS = True
 
-# --- Channels ---
+# ============================================================
+# CSRF  ← ✅ AJOUT CRUCIAL
+# ============================================================
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    "CSRF_TRUSTED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "http://localhost:3000,http://127.0.0.1:3000,"
+    "http://localhost:8000,http://127.0.0.1:8000"
+).split(",")
+
+# React doit pouvoir lire le cookie csrftoken depuis JS
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG          # True en prod (HTTPS)
+
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = not DEBUG       # True en prod (HTTPS)
+SESSION_COOKIE_HTTPONLY = True
+
+# ============================================================
+# CHANNELS (WebSocket)
+# ============================================================
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {"hosts": [(os.getenv("REDIS_HOST", "localhost"), 6379)]},
     }
 }
-
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"

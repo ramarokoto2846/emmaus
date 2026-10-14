@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Avatar from "../ui/Avatar";
+import NomUtilisateur from "../ui/NomUtilisateur";
 import Icon from "../ui/Icon";
 import { directsLive, profils, themes } from "../../api/endpoints";
 
@@ -55,7 +56,7 @@ export default function RightPanel() {
             >
               <Avatar profil={p} size="sm" />
               <div>
-                <b>{p.nom_affiche}</b>
+                <NomUtilisateur profil={p} taille="sm" />
                 <small>{p.sous_titre || p.ville || "Membre Emmaüs"}</small>
               </div>
               <span className="mini">Voir</span>

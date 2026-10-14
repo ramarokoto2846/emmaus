@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Avatar from "../components/ui/Avatar";
 import { useAuthStore } from "../store/authStore";
+import { useToast } from "../components/ui/Toast";
 import {
   monProfil,
   majMonProfil,
@@ -14,6 +15,7 @@ export default function Parametres() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const setProfilStore = useAuthStore((s) => s.setProfil);
+  const { afficher: afficherToast } = useToast();
 
   const { data: profilData, isLoading } = useQuery({
     queryKey: ["mon-profil"],
@@ -58,21 +60,42 @@ export default function Parametres() {
   const mutation = useMutation({
     mutationFn: (data) => majMonProfil(data),
     onSuccess: (data) => {
+      // 1. Mettre à jour le store
       setProfilStore(data);
+
+      // 2. Rafraîchir les caches
       qc.invalidateQueries({ queryKey: ["mon-profil"] });
       qc.invalidateQueries({ queryKey: ["profil"] });
       qc.invalidateQueries({ queryKey: ["profils"] });
-      flash("Profil mis à jour ✅");
+      qc.invalidateQueries({ queryKey: ["fil"] });
+      qc.invalidateQueries({ queryKey: ["mes-publications"] });
+
+      // 3. Toast
+      afficherToast("Tes informations ont bien été enregistrées.", {
+        type: "success",
+        titre: "Profil mis à jour",
+        duree: 4000,
+      });
+
+      // 4. Redirection vers le mur
+      setTimeout(() => {
+        navigate("/moi");
+      }, 500);
     },
     onError: (err) => {
       const detail = err.response?.data?.details || err.response?.data;
-      setErreur(
+      const message =
         typeof detail === "object"
           ? Object.entries(detail)
               .map(([k, v]) => `${k}: ${[].concat(v).join(", ")}`)
               .join(" | ")
-          : "Erreur lors de la sauvegarde."
-      );
+          : "Erreur lors de la sauvegarde.";
+
+      afficherToast(message, {
+        type: "error",
+        titre: "Erreur de sauvegarde",
+        duree: 5000,
+      });
     },
   });
 
@@ -82,7 +105,10 @@ export default function Parametres() {
       setProfilStore(data);
       qc.invalidateQueries({ queryKey: ["mon-profil"] });
       qc.invalidateQueries({ queryKey: ["profil"] });
-      flash("Avatar mis à jour ✅");
+      afficherToast("Ton avatar a été mis à jour.", {
+        type: "success",
+        titre: "Avatar modifié",
+      });
     },
     onError: (e) =>
       setErreur("Erreur avatar : " + (e.response?.data?.detail || e.message)),
@@ -94,7 +120,10 @@ export default function Parametres() {
       setProfilStore(data);
       qc.invalidateQueries({ queryKey: ["mon-profil"] });
       qc.invalidateQueries({ queryKey: ["profil"] });
-      flash("Couverture mise à jour ✅");
+      afficherToast("Ta couverture a été mise à jour.", {
+        type: "success",
+        titre: "Couverture modifiée",
+      });
     },
     onError: (e) =>
       setErreur("Erreur couverture : " + (e.response?.data?.detail || e.message)),

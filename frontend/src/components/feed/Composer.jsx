@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Avatar from "../ui/Avatar";
-import Icon from "../ui/Icon";
 import { useAuthStore } from "../../store/authStore";
 import { creerPublication } from "../../api/endpoints";
 
@@ -10,9 +9,7 @@ export default function Composer() {
   const profil = useAuthStore((s) => s.profil);
   const [searchParams, setSearchParams] = useSearchParams();
   const [ouvert, setOuvert] = useState(searchParams.get("composer") === "1");
-  
   const [texte, setTexte] = useState("");
-  const navigate = useNavigate();
   const [estMobile, setEstMobile] = useState(
     typeof window !== "undefined" && window.innerWidth <= 1100
   );
@@ -33,7 +30,7 @@ export default function Composer() {
   const mutation = useMutation({
     mutationFn: () =>
       creerPublication({
-        texte,
+        texte: texte.trim(),
         type: "texte",
         visibilite: "public",
       }),
@@ -43,18 +40,20 @@ export default function Composer() {
       searchParams.delete("composer");
       setSearchParams(searchParams, { replace: true });
       qc.invalidateQueries({ queryKey: ["fil"] });
+      qc.invalidateQueries({ queryKey: ["mes-publications"] });
     },
   });
 
   function fermer() {
     setOuvert(false);
+    setTexte("");
     if (searchParams.get("composer")) {
       searchParams.delete("composer");
       setSearchParams(searchParams, { replace: true });
     }
   }
 
-  // Mode édition
+  // MODE ÉDITION
   if (ouvert) {
     return (
       <div
@@ -63,7 +62,9 @@ export default function Composer() {
       >
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
           <Avatar profil={profil} />
-          <div style={{ flex: 1, fontWeight: 600 }}>{profil?.nom_affiche}</div>
+          <div style={{ flex: 1, fontWeight: 600 }}>
+            {profil?.nom_affiche}
+          </div>
           <button className="btn alt" onClick={fermer}>
             Annuler
           </button>
@@ -95,10 +96,6 @@ export default function Composer() {
             marginTop: 12,
           }}
         >
-          <button className="btn fl" onClick={() => navigate("/video/publier")}>
-            <Icon name="plus" />
-            Vidéo
-          </button>
           <button
             className="btn"
             onClick={() => mutation.mutate()}
@@ -111,21 +108,20 @@ export default function Composer() {
     );
   }
 
-  // MOBILE : pas de composer (le bouton + du Dock ouvre le mode édition)
+  // MOBILE : pas de composer (le bouton + du Dock gère)
   if (estMobile) {
     return null;
   }
 
-  // DESKTOP : composer classique
+  // DESKTOP : composer simple
   return (
     <div className="card comp">
       <Avatar profil={profil} />
       <button className="say" onClick={() => setOuvert(true)}>
         Quelle parole veux-tu partager aujourd'hui ?
       </button>
-      <button className="btn fl" onClick={() => navigate("/video/publier")}>
-        <Icon name="plus" />
-        Vidéo
+      <button className="btn fl" onClick={() => setOuvert(true)}>
+        Publier
       </button>
     </div>
   );

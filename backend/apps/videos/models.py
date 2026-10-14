@@ -77,6 +77,7 @@ class Verset(models.Model):
 
 class Video(BaseModel):
     auteur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name="videos")
+    moderation_verifiee = models.BooleanField(default=False)
     eglise = models.ForeignKey(Eglise, on_delete=models.SET_NULL, null=True, blank=True,
                                related_name="videos")
     titre = models.CharField(max_length=160)
