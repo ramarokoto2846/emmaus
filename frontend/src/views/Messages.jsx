@@ -111,9 +111,22 @@ export default function Messages() {
   }
 
   function apercu(conv) {
-    const txt = conv.dernier_message?.texte || "Nouvelle discussion";
+    const dernier = conv.dernier_message;
+    let txt;
+    if (!dernier) {
+      txt = "Nouvelle discussion";
+    } else if (dernier.supprime) {
+      // ✅ Placeholder dans l'aperçu de la liste
+      txt = dernier.expediteur?.id === monProfil?.id
+        ? "Vous avez supprimé un message"
+        : "Message supprimé";
+    } else {
+      txt = dernier.texte || "Nouvelle discussion";
+    }
     const prefix =
-      conv.dernier_message?.expediteur?.id === monProfil?.id ? "Vous : " : "";
+      dernier?.expediteur?.id === monProfil?.id && !dernier?.supprime
+        ? "Vous : "
+        : "";
     const complet = prefix + txt;
     if (complet.length <= 40) return complet;
     return complet.slice(0, 40) + "...";
@@ -296,22 +309,32 @@ function BulleMessage({ message, moi, conversationId }) {
     if (ok) supprMutation.mutate();
   }
 
+  // ✅ Texte à afficher (placeholder si supprimé)
+  const texteAffiche = message.supprime
+    ? moi
+      ? "Vous avez supprimé un message"
+      : "Message supprimé"
+    : message.texte;
+
+  // ✅ Pas de menu sur un message supprimé
+  const peutSupprimer = moi && !message.supprime;
+
   return (
     <div className={`bb-wrap ${moi ? "moi" : "autre"}`}>
       {!moi && <Avatar profil={message.expediteur} size="sm" />}
       <div
-        className={`bb ${moi ? "m" : "o"}`}
-        onClick={() => moi && setMenuOuvert((v) => !v)}
+        className={`bb ${moi ? "m" : "o"} ${message.supprime ? "supprime" : ""}`}
+        onClick={() => peutSupprimer && setMenuOuvert((v) => !v)}
         style={{
-          cursor: moi ? "pointer" : "default",
+          cursor: peutSupprimer ? "pointer" : "default",
           position: "relative",
         }}
-        ref={moi ? ref : null}
+        ref={peutSupprimer ? ref : null}
       >
-        <span className="bb-txt">{message.texte}</span>
+        <span className="bb-txt">{texteAffiche}</span>
         <span className="bb-time">{formatRelative(message.cree_le)}</span>
 
-        {moi && menuOuvert && (
+        {peutSupprimer && menuOuvert && (
           <div className="bb-menu" onClick={(e) => e.stopPropagation()}>
             <button onClick={supprimer}>
               <FiTrash2 size={14} /> Supprimer

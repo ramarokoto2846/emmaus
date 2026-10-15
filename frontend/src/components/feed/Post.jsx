@@ -11,6 +11,7 @@ import {
   FiEdit2,
   FiRepeat,
   FiCheckCircle,
+  FiAlertTriangle,
 } from "react-icons/fi";
 
 import Avatar from "../ui/Avatar";
@@ -43,6 +44,7 @@ export default function Post({ publication, onOuvrirCommentaires }) {
   const [modaleCommentaires, setModaleCommentaires] = useState(false);
   const [modalePartage, setModalePartage] = useState(false);
   const [signalementOuvert, setSignalementOuvert] = useState(false);
+  const [modaleModifVerifiee, setModaleModifVerifiee] = useState(false);
 
   const estMoi = publication.auteur?.id === monProfil?.id;
   const estRepartage =
@@ -104,9 +106,12 @@ export default function Post({ publication, onOuvrirCommentaires }) {
 
   /* ---- Supprimer ---- */
   async function supprimer() {
+    setMenuOuvert(false);
     const ok = await confirmer({
       titre: "Supprimer cette publication ?",
-      message: "Cette action est définitive.",
+      message: publication.video
+        ? "La publication ET la vidéo associée seront définitivement supprimées."
+        : "Cette action est définitive.",
       labelConfirmer: "Supprimer",
       danger: true,
     });
@@ -127,7 +132,22 @@ export default function Post({ publication, onOuvrirCommentaires }) {
     }
   }
 
-  /* ---- Ouvrir les commentaires ---- */
+  /* ---- Modifier ---- */
+  function modifier() {
+    setMenuOuvert(false);
+    if (estVerifiee) {
+      setModaleModifVerifiee(true);
+    } else {
+      navigate(`/publication/${publication.id}/modifier`);
+    }
+  }
+
+  function confirmerModifVerifiee() {
+    setModaleModifVerifiee(false);
+    navigate(`/publication/${publication.id}/modifier`);
+  }
+
+  /* ---- Commentaires ---- */
   function ouvrirCommentaires() {
     if (onOuvrirCommentaires) {
       onOuvrirCommentaires();
@@ -144,6 +164,95 @@ export default function Post({ publication, onOuvrirCommentaires }) {
     if (id) navigate(`/publication/${id}`);
   }
 
+  /* ============================================================
+     Rendu du menu OU du badge
+     ============================================================ */
+  function renderMenuOuBadge() {
+    // --- Cas 1 : Publication VÉRIFIÉE ---
+    if (estVerifiee) {
+      if (estMoi) {
+        return (
+          <div
+            className="post-header-actions"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span
+              className="badge-verifie"
+              title="Contenu vérifié par la modération"
+            >
+              <FiCheckCircle size={14} /> Vérifié
+            </span>
+            <div className="post-menu">
+              <button
+                className="more"
+                onClick={() => setMenuOuvert(!menuOuvert)}
+                aria-label="Options"
+              >
+                <FiMoreHorizontal size={18} />
+              </button>
+              {menuOuvert && (
+                <div className="post-menu-list">
+                  <button onClick={modifier}>
+                    <FiEdit2 size={14} /> Modifier
+                  </button>
+                  <button onClick={supprimer} className="danger">
+                    <FiTrash2 size={14} /> Supprimer
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      return (
+        <span
+          className="badge-verifie"
+          title="Contenu vérifié par la modération"
+        >
+          <FiCheckCircle size={14} /> Vérifié
+        </span>
+      );
+    }
+
+    // --- Cas 2 : Publication NON VÉRIFIÉE → menu normal ---
+    return (
+      <div className="post-menu" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="more"
+          onClick={() => setMenuOuvert(!menuOuvert)}
+          aria-label="Options"
+        >
+          <FiMoreHorizontal size={18} />
+        </button>
+        {menuOuvert && (
+          <div className="post-menu-list">
+            {estMoi ? (
+              <>
+                {/* ✅ Modifier remplace Voir */}
+                <button onClick={modifier}>
+                  <FiEdit2 size={14} /> Modifier
+                </button>
+                <button onClick={supprimer} className="danger">
+                  <FiTrash2 size={14} /> Supprimer
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setSignalementOuvert(true);
+                  setMenuOuvert(false);
+                }}
+                className="danger"
+              >
+                <FiFlag size={14} /> Signaler
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <article className={`card post ${estRepartage ? "post-repartage" : ""}`}>
@@ -156,11 +265,6 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           </div>
         )}
 
-        {/* ============================================================
-            EN-TÊTE
-            ✅ Vérifiée → badge "Vérifié" (pas de menu, pas de signalement)
-            ✅ Non vérifiée → menu 3 points + Signaler
-           ============================================================ */}
         <header className="ph">
           <button
             onClick={() => allerProfil(publication.auteur?.id)}
@@ -177,68 +281,21 @@ export default function Post({ publication, onOuvrirCommentaires }) {
             <small>{formatRelative(publication.cree_le)}</small>
           </div>
 
-          {estVerifiee ? (
-            // ✅ Publication vérifiée : badge à droite, pas de menu
-            <span
-              className="badge-verifie"
-              title="Contenu vérifié par la modération — ne peut plus être signalé"
-            >
-              <FiCheckCircle size={14} /> Vérifié
-            </span>
-          ) : (
-            // ✅ Publication normale : menu 3 points + signaler
-            <div className="post-menu" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="more"
-                onClick={() => setMenuOuvert(!menuOuvert)}
-                aria-label="Options"
-              >
-                <FiMoreHorizontal size={18} />
-              </button>
-
-              {menuOuvert && (
-                <div className="post-menu-list">
-                  {estMoi ? (
-                    <>
-                      <button onClick={() => allerPublication(publication.id)}>
-                        <FiEdit2 size={14} /> Voir
-                      </button>
-                      <button onClick={supprimer} className="danger">
-                        <FiTrash2 size={14} /> Supprimer
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setSignalementOuvert(true);
-                        setMenuOuvert(false);
-                      }}
-                      className="danger"
-                    >
-                      <FiFlag size={14} /> Signaler
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {renderMenuOuBadge()}
         </header>
 
-        {/* Texte */}
         {publication.texte && (
           <p style={{ margin: "12px 0", whiteSpace: "pre-wrap" }}>
             {publication.texte}
           </p>
         )}
 
-        {/* Vidéo */}
         {publication.video && (
           <div className="vid-bloc">
             <VideoCard video={publication.video} index={0} aspect="16/9" />
           </div>
         )}
 
-        {/* Verset */}
         {publication.verset && (
           <div className="fb-embed-verset">
             <div className="fb-embed-verset-ref">
@@ -248,7 +305,6 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           </div>
         )}
 
-        {/* Repartage */}
         {estRepartage && (
           <div
             className="fb-embed"
@@ -296,7 +352,6 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           </div>
         )}
 
-        {/* Actions */}
         <div className="acts">
           <button
             className={publication.est_amen ? "on" : ""}
@@ -360,6 +415,105 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           cibleId={publication.id}
           onClose={() => setSignalementOuvert(false)}
         />
+      )}
+
+      {modaleModifVerifiee && (
+        <div
+          className="modal-overlay"
+          onClick={() => setModaleModifVerifiee(false)}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 480 }}
+          >
+            <div className="modal-head">
+              <h3
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <FiAlertTriangle size={20} style={{ color: "var(--flame)" }} />
+                Modifier une publication vérifiée ?
+              </h3>
+              <button
+                className="modal-close"
+                onClick={() => setModaleModifVerifiee(false)}
+                aria-label="Fermer"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: "20px 24px" }}>
+              <div
+                style={{
+                  background: "rgba(212, 162, 51, 0.12)",
+                  border: "1px solid rgba(212, 162, 51, 0.3)",
+                  borderRadius: 14,
+                  padding: 16,
+                  marginBottom: 16,
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
+                }}
+              >
+                <FiAlertTriangle
+                  size={20}
+                  style={{ color: "var(--flame)", flex: "none", marginTop: 2 }}
+                />
+                <div>
+                  <b style={{ display: "block", marginBottom: 6 }}>
+                    Tu vas perdre le badge « Vérifié »
+                  </b>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 14,
+                      color: "var(--mute)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Cette publication a été examinée et approuvée par un
+                    modérateur. Si tu la modifies, elle devra être signalée et
+                    réexaminée avant de récupérer son badge.
+                  </p>
+                </div>
+              </div>
+
+              <p
+                style={{
+                  fontSize: 14.5,
+                  lineHeight: 1.5,
+                  color: "var(--ink)",
+                  marginBottom: 4,
+                }}
+              >
+                Veux-tu vraiment la modifier ?
+              </p>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                justifyContent: "flex-end",
+                padding: "12px 24px 20px",
+                borderTop: "1px solid var(--line)",
+              }}
+            >
+              <button
+                className="btn alt"
+                onClick={() => setModaleModifVerifiee(false)}
+              >
+                Annuler
+              </button>
+              <button className="btn fl" onClick={confirmerModifVerifiee}>
+                <FiEdit2 size={14} /> Modifier quand même
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

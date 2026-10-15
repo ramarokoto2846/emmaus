@@ -26,6 +26,10 @@ class Message(BaseModel):
     video = models.ForeignKey(Video, on_delete=models.SET_NULL, null=True, blank=True)
     lu_le = models.DateTimeField(null=True, blank=True)
 
+    # ✅ AJOUT : suppression logique
+    supprime = models.BooleanField(default=False)
+    supprime_le = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "messages"
         indexes = [models.Index(fields=["conversation", "-cree_le"])]

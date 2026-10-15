@@ -18,7 +18,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
-        """Conversations où je suis membre, triées par date de dernier message."""
+        """Conversations où je suis membre."""
         return (Conversation.objects
                 .filter(membres__utilisateur=self.request.user)
                 .prefetch_related("membres__utilisateur__profil")
@@ -71,6 +71,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 )
 
             return Response(MessageSerializer(msg).data, status=201)
+
         # GET : marquer comme lus
         msgs = conv.messages.select_related("expediteur__profil").order_by("-cree_le")[:50]
         ids = [m.id for m in msgs if m.expediteur != request.user and not m.lu_le]
@@ -78,10 +79,6 @@ class ConversationViewSet(viewsets.ModelViewSet):
             Message.objects.filter(id__in=ids).update(lu_le=timezone.now())
         return Response(MessageSerializer(msgs, many=True).data)
 
-from rest_framework.decorators import action
-from rest_framework import status
-from apps.notifications.services import creer_notification as _creer_notif
-
 
 class MessageViewSet(viewsets.GenericViewSet):
     """Actions sur un message individuel : suppression."""
@@ -97,55 +94,12 @@ class MessageViewSet(viewsets.GenericViewSet):
                 status=403,
             )
 
-        conversation = msg.conversation
-        # Notifier les autres membres
-        autres = ConversationMembre.objects.filter(
-            conversation=conversation
-        ).exclude(utilisateur=request.user).select_related("utilisateur")
+        # ✅ Suppression logique (on garde la ligne pour le placeholder)
+        msg.supprime = True
+        msg.supprime_le = timezone.now()
+        msg.save(update_fields=["supprime", "supprime_le"])
 
-        for m in autres:
-            _creer_notif(
-                destinataire=m.utilisateur,
-                acteur=request.user,
-                type="message",
-                cible_type="message",
-                cible_id=msg.id,
-            )
+        # ✅ PLUS DE NOTIFICATION "message_supprime"
+        # (L'utilisateur verra le placeholder directement dans la conversation)
 
-        msg.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class MessageViewSet(viewsets.GenericViewSet):
-    """Actions sur un message individuel : suppression."""
-
-    permission_classes = [IsAuthenticated]
-    queryset = Message.objects.all()
-
-    @action(detail=True, methods=["delete"])
-    def supprimer(self, request, pk=None):
-        msg = self.get_object()
-        if msg.expediteur != request.user:
-            return Response(
-                {"detail": "Vous ne pouvez supprimer que vos propres messages."},
-                status=403,
-            )
-
-        conversation = msg.conversation
-
-        # Notifier les autres membres
-        autres = ConversationMembre.objects.filter(
-            conversation=conversation
-        ).exclude(utilisateur=request.user).select_related("utilisateur")
-
-        for m in autres:
-            creer_notification(
-                destinataire=m.utilisateur,
-                acteur=request.user,
-                type="message_supprime",
-                cible_type="message",
-                cible_id=msg.id,
-            )
-
-        msg.delete()
-        return Response(status=204)

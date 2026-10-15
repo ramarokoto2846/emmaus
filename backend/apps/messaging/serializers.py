@@ -5,11 +5,20 @@ from .models import Conversation, ConversationMembre, Message
 
 class MessageSerializer(serializers.ModelSerializer):
     expediteur = AuteurMiniSerializer(source="expediteur.profil", read_only=True)
+    # ✅ Le texte est masqué si le message est supprimé
+    texte = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ("id", "expediteur", "texte", "video", "lu_le", "cree_le")
-        read_only_fields = ("expediteur", "lu_le", "cree_le")
+        fields = ("id", "expediteur", "texte", "video", "lu_le",
+                  "supprime", "supprime_le", "cree_le")
+        read_only_fields = ("expediteur", "lu_le", "cree_le",
+                            "supprime", "supprime_le")
+
+    def get_texte(self, obj):
+        if obj.supprime:
+            return None
+        return obj.texte
 
 
 class ConversationSerializer(serializers.ModelSerializer):

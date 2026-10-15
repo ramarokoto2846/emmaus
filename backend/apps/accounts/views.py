@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
+from django.db import models
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
@@ -24,7 +25,7 @@ class InscriptionView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = InscriptionSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []          # ✅ AJOUT : pas de CSRF
+    authentication_classes = []          # ✅ pas de CSRF
 
     def create(self, request, *args, **kwargs):
         s = self.get_serializer(data=request.data)
@@ -63,13 +64,23 @@ class ProfilViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ["nb_abonnes", "nb_videos", "nom_affiche"]
 
     def get_queryset(self):
-        qs = (
-            Profil.objects
-            .select_related("utilisateur", "eglise")
-            .filter(visibilite="public")
-        )
-        if self.request.user.is_authenticated:
-            qs = qs.exclude(utilisateur=self.request.user)
+        """
+        - Liste (Découvrir) : profils publics, SANS le mien
+        - Détail (retrieve) : profils publics + le mien (même privé)
+        """
+        user = self.request.user
+        qs = Profil.objects.select_related("utilisateur", "eglise")
+
+        if user.is_authenticated:
+            qs = qs.filter(
+                models.Q(visibilite="public") | models.Q(utilisateur=user)
+            )
+        else:
+            qs = qs.filter(visibilite="public")
+
+        if self.action == "list" and user.is_authenticated:
+            qs = qs.exclude(utilisateur=user)
+
         return qs
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])

@@ -4657,3 +4657,90 @@ select:focus-visible {
   margin-left: auto;   /* ✅ pousse à droite */
   animation: verifiePop 0.4s ease-out;
 }
+
+/* ============================================================
+   MESSAGES SUPPRIMÉS — placeholder
+   ============================================================ */
+.bb.supprime .bb-txt {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.bb.m.supprime .bb-txt {
+  color: color-mix(in srgb, var(--onbrand) 75%, transparent);
+}
+
+.bb.o.supprime .bb-txt {
+  color: var(--mute);
+}
+
+/* ============================================================
+   ACTIONS DU HEADER POST (badge + menu côte à côte)
+   ============================================================ */
+.post-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+
+/* Badge vérifié */
+.badge-verifie {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  animation: verifiePop 0.4s ease-out;
+  flex: none;
+}
+
+/* Si badge tout seul, il se pousse à droite */
+header.ph > .badge-verifie {
+  margin-left: auto;
+}
+
+/* Menu normal */
+.post-menu {
+  margin-left: auto;
+  position: relative;
+  flex: none;
+}
+
+/* Si le menu est dans .post-header-actions, pas de margin-left */
+.post-header-actions .post-menu {
+  margin-left: 0;
+}
+
+@keyframes verifiePop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .badge-verifie {
+  background: rgba(76, 175, 80, 0.15);
+  color: #81c784;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge-verifie {
+    background: rgba(76, 175, 80, 0.15);
+    color: #81c784;
+  }
+}

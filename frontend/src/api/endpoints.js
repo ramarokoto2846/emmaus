@@ -57,6 +57,16 @@ export const amenPublication = (id) => api.post(`/publications/${id}/amen/`).the
 // ============================================
 // COMMENTAIRES
 // ============================================
+export const commentaires = (params) =>
+  api.get("/commentaires/", { params }).then((r) => r.data);
+export const commentaire = (id) =>
+  api.get(`/commentaires/${id}/`).then((r) => r.data);
+export const creerCommentaire = (data) =>
+  api.post("/commentaires/", data).then((r) => r.data);
+export const majCommentaire = (id, data) =>
+  api.patch(`/commentaires/${id}/`, data).then((r) => r.data);
+export const supprimerCommentaire = (id) =>
+  api.delete(`/commentaires/${id}/`).then((r) => r.data);
 
 // ============================================
 // VIDÉOS
@@ -64,6 +74,8 @@ export const amenPublication = (id) => api.post(`/publications/${id}/amen/`).the
 export const videos = (params) => api.get("/videos/", { params }).then((r) => r.data);
 export const video = (id) => api.get(`/videos/${id}/`).then((r) => r.data);
 export const creerVideo = (data) => api.post("/videos/", data).then((r) => r.data);
+export const majVideo = (id, data) => api.patch(`/videos/${id}/`, data).then((r) => r.data);
+export const supprimerVideo = (id) => api.delete(`/videos/${id}/`).then((r) => r.data);
 export const publierVideo = (id) => api.post(`/videos/${id}/publier/`).then((r) => r.data);
 export const enregistrerVue = (id, data) => api.post(`/videos/${id}/vue/`, data).then((r) => r.data);
 
@@ -102,6 +114,10 @@ export const notifications = (params) => api.get("/notifications/", { params }).
 export const compterNotifications = () => api.get("/notifications/compter/").then((r) => r.data);
 export const lireNotification = (id) => api.post(`/notifications/${id}/lire/`).then((r) => r.data);
 export const toutLireNotifications = () => api.post("/notifications/tout_lire/").then((r) => r.data);
+export const supprimerNotification = (id) =>
+  api.delete(`/notifications/${id}/`).then((r) => r.data);
+export const toutSupprimerNotifications = () =>
+  api.post("/notifications/tout_supprimer/").then((r) => r.data);
 
 // ============================================
 // PRIÈRE & DÉFIS
@@ -117,28 +133,38 @@ export const rejoindreDefi = (id) => api.post(`/defis-lecture/${id}/rejoindre/`)
 // ============================================
 export const recherche = (q) => api.get("/recherche/", { params: { q } }).then((r) => r.data);
 
-// --- Abonnés / abonnements
+// ============================================
+// ABONNÉS / ABONNEMENTS
+// ============================================
 export const mesAbonnes = () => api.get("/auth/mes-abonnes/").then((r) => r.data);
 export const abonnesDe = (userId) =>
   api.get(`/profils/${userId}/abonnes/`).then((r) => r.data);
 export const abonnementsDe = (userId) =>
   api.get(`/profils/${userId}/abonnements/`).then((r) => r.data);
 
-// --- Modifier / supprimer une publication
+// ============================================
+// PUBLICATIONS : modifier / supprimer
+// ============================================
 export const majPublication = (id, data) =>
   api.patch(`/publications/${id}/`, data).then((r) => r.data);
 export const supprimerPublication = (id) =>
   api.delete(`/publications/${id}/`).then((r) => r.data);
 
-// --- Supprimer un message
+// ============================================
+// MESSAGES : supprimer
+// ============================================
 export const supprimerMessage = (id) =>
   api.delete(`/messages/${id}/supprimer/`).then((r) => r.data);
 
-// --- Signalements
+// ============================================
+// SIGNALEMENTS
+// ============================================
 export const signaler = (data) =>
   api.post("/signalements/", data).then((r) => r.data);
 
-// --- Modération
+// ============================================
+// MODÉRATION
+// ============================================
 export const moderationSignalements = () =>
   api.get("/moderation/signalements_ouverts/").then((r) => r.data);
 export const moderationRemettre = (signalementId) =>
@@ -147,36 +173,32 @@ export const moderationSupprimerDefinitif = (signalementId) =>
   api.post("/moderation/supprimer_definitif/", { signalement_id: signalementId }).then((r) => r.data);
 export const moderationConfirmer = (signalementId) =>
   api.post("/moderation/confirmer/", { signalement_id: signalementId }).then((r) => r.data);
+export const compterSignalements = () =>
+  api.get("/moderation/compter/").then((r) => r.data);
 
-// --- Versets pour la sidebar (carrousel)
+// ============================================
+// VERSETS SIDEBAR
+// ============================================
 export const versetsSidebar = () =>
   api.get("/versets-sidebar/").then((r) => r.data);
 export const toggleVersetSidebar = (id) =>
   api.post(`/versets/${id}/toggle_sidebar/`).then((r) => r.data);
 
-// --- Versets : création admin
+// ============================================
+// VERSETS : admin
+// ============================================
 export const creerVerset = (data) =>
   api.post("/versets/", data).then((r) => r.data);
 export const majVerset = (id, data) =>
   api.patch(`/versets/${id}/`, data).then((r) => r.data);
 export const supprimerVerset = (id) =>
   api.delete(`/versets/${id}/`).then((r) => r.data);
-
-// Verset du jour (simple)
 export const versetDuJour = () =>
   api.get("/verset-du-jour/").then((r) => r.data);
 
-// --- Commentaires
-export const commentaires = (params) =>
-  api.get("/commentaires/", { params }).then((r) => r.data);
-export const creerCommentaire = (data) =>
-  api.post("/commentaires/", data).then((r) => r.data);
-export const majCommentaire = (id, data) =>
-  api.patch(`/commentaires/${id}/`, data).then((r) => r.data);
-export const supprimerCommentaire = (id) =>
-  api.delete(`/commentaires/${id}/`).then((r) => r.data);
-
-// --- Upload vidéo avec compression
+// ============================================
+// UPLOAD VIDÉO
+// ============================================
 export const uploadVideo = (formData, onProgress) => {
   return api
     .post("/videos-upload/", formData, {
@@ -191,17 +213,9 @@ export const uploadVideo = (formData, onProgress) => {
     .then((r) => r.data);
 };
 
-// --- Modération : compteur
-export const compterSignalements = () =>
-  api.get("/moderation/compter/").then((r) => r.data);
-
-// --- Notifications : suppression
-export const supprimerNotification = (id) =>
-  api.delete(`/notifications/${id}/`).then((r) => r.data);
-export const toutSupprimerNotifications = () =>
-  api.post("/notifications/tout_supprimer/").then((r) => r.data);
-
-// --- Modération : gestion des modérateurs (admin)
+// ============================================
+// MODÉRATEURS (admin)
+// ============================================
 export const promouvoirModerateur = (userId) =>
   api.post(`/profils/${userId}/promouvoir_moderateur/`).then((r) => r.data);
 export const retrograderModerateur = (userId) =>
@@ -209,7 +223,9 @@ export const retrograderModerateur = (userId) =>
 export const listeModerateurs = () =>
   api.get("/profils/moderateurs/").then((r) => r.data);
 
-// --- Enregistrements
+// ============================================
+// ENREGISTREMENTS
+// ============================================
 export const enregistrerContenu = (data) =>
   api.post("/enregistrements/", data).then((r) => r.data);
 export const compterEnregistrements = () =>
@@ -223,16 +239,10 @@ export const verifierEnregistrement = (cibleType, cibleId) =>
 export const listeEnregistrements = () =>
   api.get("/enregistrements/liste/").then((r) => r.data);
 
-// --- Repartage
+// ============================================
+// REPARTAGE
+// ============================================
 export const repartager = (id, texte = "") =>
   api.post(`/publications/${id}/repartager/`, { texte }).then((r) => r.data);
-
 export const verifierRepartage = (id) =>
   api.get(`/publications/${id}/verifier_repartage/`).then((r) => r.data);
-
-
-/* ============================================================
-   Commentaires
-   ============================================================ */
-export const commentaire = (id) =>
-  api.get(`/commentaires/${id}/`).then((r) => r.data);

@@ -87,12 +87,7 @@ class VersetViewSet(viewsets.ModelViewSet):
 
 
 class VersetsSidebarView(viewsets.ViewSet):
-    """Renvoie les versets pour la sidebar (rotation côté client).
-    
-    Priorité :
-    1. Les versets marqués actif_sidebar=True
-    2. Sinon TOUS les versets de la base (rotation complète)
-    """
+    """Renvoie les versets pour la sidebar (rotation côté client)."""
     permission_classes = [AllowAny]
 
     def list(self, request):
@@ -133,8 +128,29 @@ class VideoViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         if self.request.user.is_authenticated and self.action != "retrieve":
-            return qs.filter(statut=StatutVideo.PUBLIE) | qs.filter(auteur=self.request.user)
+            return (
+                qs.filter(statut=StatutVideo.PUBLIE)
+                | qs.filter(auteur=self.request.user)
+            )
         return qs.filter(statut=StatutVideo.PUBLIE)
+
+    def perform_create(self, serializer):
+        serializer.save(auteur=self.request.user)
+
+    def perform_update(self, serializer):
+        """
+        ✅ Si la vidéo était vérifiée par la modération,
+        on retire le badge quand l'auteur la modifie.
+        Elle devra être réexaminée.
+        """
+        video = self.get_object()
+        etait_verifiee = video.moderation_verifiee
+
+        instance = serializer.save()
+
+        if etait_verifiee:
+            instance.moderation_verifiee = False
+            instance.save(update_fields=["moderation_verifiee"])
 
     @action(detail=True, methods=["post"])
     def publier(self, request, pk=None):
@@ -155,7 +171,6 @@ class VideoViewSet(viewsets.ModelViewSet):
 
         utilisateur = request.user if request.user.is_authenticated else None
 
-        # Créer ou mettre à jour la vue (une seule par utilisateur)
         if utilisateur:
             vue, created = VueVideo.objects.get_or_create(
                 video=video,
@@ -171,7 +186,6 @@ class VideoViewSet(viewsets.ModelViewSet):
                 },
             )
 
-            # Si la vue existait déjà, on met juste à jour la position
             if not created:
                 vue.duree_regardee_secondes = int(
                     request.data.get("duree_regardee_secondes", vue.duree_regardee_secondes)
@@ -183,7 +197,6 @@ class VideoViewSet(viewsets.ModelViewSet):
                     vue.termine = True
                 vue.save()
 
-            # Incrémenter nb_vues seulement si c'est la 1ère vue
             if created:
                 Video.objects.filter(pk=video.pk).update(nb_vues=F("nb_vues") + 1)
 
@@ -193,7 +206,6 @@ class VideoViewSet(viewsets.ModelViewSet):
                 "nb_vues": Video.objects.get(pk=video.pk).nb_vues,
             })
 
-        # Visiteur anonyme : on compte à chaque fois (pas d'identification)
         Video.objects.filter(pk=video.pk).update(nb_vues=F("nb_vues") + 1)
         return Response({
             "vue": True,
@@ -209,7 +221,6 @@ class VersetDuJourView(viewsets.ViewSet):
     def list(self, request):
         today = timezone.now().date()
 
-        # 1. Verset du jour exact
         vdj = (
             VersetDuJour.objects
             .select_related("verset")
@@ -217,7 +228,6 @@ class VersetDuJourView(viewsets.ViewSet):
             .first()
         )
 
-        # 2. Sinon, le plus récent avant aujourd'hui
         if not vdj:
             vdj = (
                 VersetDuJour.objects
@@ -227,7 +237,6 @@ class VersetDuJourView(viewsets.ViewSet):
                 .first()
             )
 
-        # 3. Sinon, premier verset de la base
         if not vdj:
             premier = Verset.objects.order_by("id").first()
             if premier:
@@ -248,22 +257,19 @@ class VersetDuJourView(viewsets.ViewSet):
 # =========================================================================
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files import File
-from .services import compresser_video, generer_miniature, obtenir_duree
 import os
 
 
 class UploadVideoView(viewsets.ViewSet):
     """
     POST /api/videos-upload/
-    Upload simple d'une vidéo (sans compression pour l'instant).
+    Upload d'une vidéo.
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def create(self, request):
-        import os
         import traceback
-        from django.core.files import File
         from django.utils import timezone
 
         fichier = request.FILES.get("fichier")
@@ -281,7 +287,7 @@ class UploadVideoView(viewsets.ViewSet):
         type_video = request.data.get("type", "predication")
         visibilite = request.data.get("visibilite", "public")
 
-        # Créer la vidéo
+        # ✅ Nouvelle vidéo : jamais vérifiée d'office
         video = Video.objects.create(
             auteur=request.user,
             titre=titre,
@@ -292,13 +298,12 @@ class UploadVideoView(viewsets.ViewSet):
             publie_le=timezone.now(),
             taille_originale_octets=fichier.size,
             taille_compressee_octets=fichier.size,
+            moderation_verifiee=False,
         )
 
         try:
-            # Sauvegarder le fichier
             video.fichier.save(fichier.name, File(fichier), save=True)
 
-            # Tenter d'obtenir la durée + miniature (optionnel)
             try:
                 from .services import generer_miniature, obtenir_duree
                 chemin = video.fichier.path
@@ -316,13 +321,11 @@ class UploadVideoView(viewsets.ViewSet):
 
             video.save()
 
-            # Compteur auteur
             from apps.accounts.models import Profil
             Profil.objects.filter(utilisateur=request.user).update(
                 nb_videos=F("nb_videos") + 1
             )
 
-            # Publication dans le fil
             from apps.feed.models import Publication
             Publication.objects.create(
                 auteur=request.user,

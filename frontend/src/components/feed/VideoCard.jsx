@@ -18,6 +18,8 @@ const GRADIENTS = [
   "linear-gradient(135deg, #5A1220, #C8963A)",
 ];
 
+const SEUIL_VUE_SECONDES = 3;    // ✅ 3 secondes de lecture minimum
+
 function libelleType(type) {
   const map = {
     predication: "Prédication",
@@ -43,11 +45,16 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
   const [duree, setDuree] = useState(video.duree_secondes || 0);
   const [position, setPosition] = useState(0);
   const [chargement, setChargement] = useState(true);
-  const [vueEnregistree, setVueEnregistree] = useState(false);
   const [nbVuesLocal, setNbVuesLocal] = useState(video.nb_vues || 0);
 
   const videoRef = useRef(null);
   const barreRef = useRef(null);
+  const conteneurRef = useRef(null);
+
+  // ✅ Suivi du temps de lecture cumulé (pour valider la vue)
+  const tempsLectureRef = useRef(0);
+  const vueDejaCompteeRef = useRef(false);
+  const dernierTimeRef = useRef(0);
 
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const fichierUrl = video.fichier_url;
@@ -56,22 +63,57 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
 
   // Reset quand on change de vidéo
   useEffect(() => {
-    setVueEnregistree(false);
     setEnLecture(false);
     setPosition(0);
     setDuree(video.duree_secondes || 0);
     setChargement(true);
     setNbVuesLocal(video.nb_vues || 0);
-  }, [video.id]);
+    tempsLectureRef.current = 0;
+    vueDejaCompteeRef.current = false;
+    dernierTimeRef.current = 0;
+  }, [video.id, video.nb_vues]);
 
-  // Écoute des événements vidéo
+  // Écoute des événements vidéo + comptage du temps de lecture
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
 
     function update() {
       setPosition(v.currentTime);
+
+      // ✅ Calculer combien de temps a été regardé (delta entre positions)
+      const delta = v.currentTime - dernierTimeRef.current;
+      dernierTimeRef.current = v.currentTime;
+
+      // Si l'utilisateur avance, delta peut être grand (seek) → on ignore
+      // On ne compte que le temps réellement joué (0 < delta < 1.5s)
+      if (delta > 0 && delta < 1.5) {
+        tempsLectureRef.current += delta;
+      }
+
+      // ✅ Vérifier si le seuil de 3 secondes est atteint
+      if (
+        !vueDejaCompteeRef.current &&
+        tempsLectureRef.current >= SEUIL_VUE_SECONDES
+      ) {
+        vueDejaCompteeRef.current = true;
+        enregistrerVue(video.id, {
+          duree_regardee_secondes: Math.round(tempsLectureRef.current),
+          position_reprise_secondes: Math.round(v.currentTime),
+          termine: false,
+        })
+          .then((res) => {
+            // ✅ Le backend renvoie le nouveau compteur
+            if (res.nb_vues !== undefined) {
+              setNbVuesLocal(res.nb_vues);
+            }
+          })
+          .catch((err) => {
+            console.error("❌ Erreur vue:", err);
+          });
+      }
     }
+
     function onLoaded() {
       setDuree(v.duration || 0);
       setChargement(false);
@@ -81,9 +123,14 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
     }
     function onPlay() {
       setEnLecture(true);
+      dernierTimeRef.current = v.currentTime;
     }
     function onPause() {
       setEnLecture(false);
+    }
+    function onSeeking() {
+      // ✅ Réinitialiser le dernierTime pour ne pas compter le seek
+      dernierTimeRef.current = v.currentTime;
     }
 
     v.addEventListener("timeupdate", update);
@@ -91,6 +138,7 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
     v.addEventListener("error", onError);
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
+    v.addEventListener("seeking", onSeeking);
 
     return () => {
       v.removeEventListener("timeupdate", update);
@@ -98,37 +146,38 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
       v.removeEventListener("error", onError);
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
+      v.removeEventListener("seeking", onSeeking);
     };
-  }, [fichierUrl]);
+  }, [fichierUrl, video.id]);
 
-  // Enregistrer la vue après 3 secondes de lecture
+  // ✅ AUTO-PAUSE quand la vidéo sort du viewport
   useEffect(() => {
-    if (!enLecture || vueEnregistree) return;
+    if (!aUnVraiFichier) return;
 
-    console.log("⏱️ Vue sera enregistrée dans 3 secondes pour:", video.id);
+    const conteneur = conteneurRef.current;
+    if (!conteneur) return;
 
-    const timer = setTimeout(() => {
-      console.log("📡 Enregistrement de la vue...");
-      enregistrerVue(video.id, {
-        duree_regardee_secondes: Math.round(position),
-        position_reprise_secondes: Math.round(position),
-        termine: false,
-      })
-        .then((res) => {
-          console.log("✅ Vue enregistrée:", res);
-          setNbVuesLocal(res.nb_vues);
-          setVueEnregistree(true);
-        })
-        .catch((err) => {
-          console.error("❌ Erreur vue:", err);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            const v = videoRef.current;
+            if (v && !v.paused) {
+              v.pause();
+            }
+          }
         });
-    }, 3000);
+      },
+      { threshold: 0.3, rootMargin: "0px" }
+    );
 
-    return () => clearTimeout(timer);
-  }, [enLecture, vueEnregistree, position, video.id]);
+    observer.observe(conteneur);
+    return () => observer.disconnect();
+  }, [aUnVraiFichier, fichierUrl]);
 
+  // ✅ Clic = play/pause toggle
   function toggleLecture(e) {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     const v = videoRef.current;
     if (!v) return;
 
@@ -165,6 +214,7 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
     const ratio = Math.max(0, Math.min(1, x / rect.width));
     v.currentTime = ratio * duree;
     setPosition(v.currentTime);
+    dernierTimeRef.current = v.currentTime;   // ✅ évite de compter le seek
   }
 
   const pourcentage = duree > 0 ? (position / duree) * 100 : 0;
@@ -173,14 +223,18 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
   if (aUnVraiFichier) {
     return (
       <div className="vid-bloc">
-        <div className="vid-reelle" style={{ aspectRatio: aspect }}>
+        <div
+          className="vid-reelle"
+          style={{ aspectRatio: aspect }}
+          ref={conteneurRef}
+        >
           <video
             ref={videoRef}
             src={fichierUrl}
             poster={miniatureUrl || undefined}
             preload="metadata"
             playsInline
-            onClick={(e) => e.stopPropagation()}
+            onClick={toggleLecture}
           />
 
           {chargement && (
@@ -200,7 +254,10 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
           )}
 
           <div className="vid-controls">
-            <button onClick={toggleLecture} aria-label={enLecture ? "Pause" : "Lire"}>
+            <button
+              onClick={toggleLecture}
+              aria-label={enLecture ? "Pause" : "Lire"}
+            >
               {enLecture ? <FiPause size={16} /> : <FiPlay size={16} />}
             </button>
 
@@ -227,7 +284,6 @@ export default function VideoCard({ video, index = 0, aspect = "16/9" }) {
           </div>
         </div>
 
-        {/* Métadonnées sous la vidéo */}
         <div className="vid-meta">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h4 className="vid-meta-titre" style={{ flex: 1, margin: 0 }}>

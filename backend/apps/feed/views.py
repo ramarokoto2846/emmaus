@@ -7,7 +7,6 @@ from rest_framework.response import Response
 from apps.accounts.models import Abonnement
 from apps.common.pagination import FilPagination
 from apps.common.permissions import EstAuteurOuLectureSeule
-# ✅ AJOUT : notifier_reponse_commentaire dans l'import
 from apps.notifications.services import (
     creer_notification,
     notifier_mentions,
@@ -72,6 +71,29 @@ class PublicationViewSet(viewsets.ModelViewSet):
         # ✅ Détecter les @mentions dans le texte de la publication
         if publication.texte:
             notifier_mentions(publication, self.request.user)
+
+    def perform_update(self, serializer):
+        """
+        ✅ Si la publication était vérifiée, on retire le badge.
+        Elle redevient signalable et devra être réexaminée.
+        """
+        publication = self.get_object()
+        etait_verifiee = publication.moderation_verifiee
+
+        instance = serializer.save()
+
+        if etait_verifiee:
+            instance.moderation_verifiee = False
+            instance.save(update_fields=["moderation_verifiee"])
+
+    def perform_destroy(self, instance):
+        """
+        ✅ Supprime la publication ET la vidéo associée (base + stockage).
+        """
+        video = instance.video
+        instance.delete()
+        if video:
+            video.delete()
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def amen(self, request, pk=None):
@@ -193,11 +215,10 @@ class CommentaireViewSet(viewsets.ModelViewSet):
             except Publication.DoesNotExist:
                 pass
 
-        # ✅ 2. Notifier l'auteur du commentaire parent (si c'est une réponse)
-        #       → fonctionne pour TOUS les niveaux (mère OU réponse)
+        # 2. Notifier l'auteur du commentaire parent (si c'est une réponse)
         notifier_reponse_commentaire(c, self.request.user)
 
-        # ✅ 3. Notifier les @mentions
+        # 3. Notifier les @mentions
         notifier_mentions(c, self.request.user)
 
     def perform_destroy(self, instance):
