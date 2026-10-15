@@ -21,6 +21,9 @@ import {
 } from "../api/endpoints";
 import { formatRelative } from "../utils/format";
 
+/* ============================================================
+   LIBELLÉS DES NOTIFICATIONS
+   ============================================================ */
 const LIBELLES = {
   amen: "a mis un Amen à votre publication",
   commentaire: "a commenté votre publication",
@@ -28,7 +31,6 @@ const LIBELLES = {
   direct: "a lancé un direct",
   priere: "a prié pour votre sujet",
   defi: "vous invite à un défi",
-  message: "vous a envoyé un message",
   message_supprime: "a supprimé un message dans votre conversation",
   verset: "a partagé le verset du jour",
   partage: "a repartagé votre publication. Cliquez pour voir son partage.",
@@ -41,19 +43,42 @@ const LIBELLES = {
   suppression_contenu:
     "❌ Votre contenu a été supprimé par la modération.",
   promotion_moderateur:
-    "🎉 Félicitations ! Tu es maintenant modérateur de la communauté Emmaüs. Tu peux désormais examiner les signalements et modérer les contenus.",
+    "🎉 Félicitations ! Tu es maintenant modérateur de la communauté Emmaüs.",
   retrogradation:
     "Malheureusement, ton rôle de modérateur a été retiré. Tu restes un membre précieux de la communauté.",
+  // ✅ AJOUT
+  reponse: "a répondu à votre commentaire",
 };
 
-// Types qui pointent vers un contenu de l'utilisateur (à voir)
+/* ============================================================
+   Libellés dynamiques pour le type "mention"
+   ============================================================ */
+function libelleMention(notif) {
+  if (notif.cible_type === "commentaire") {
+    return "vous a mentionné dans un commentaire";
+  }
+  if (notif.cible_type === "publication") {
+    return "vous a mentionné dans une publication";
+  }
+  return "vous a mentionné";
+}
+
+/* ============================================================
+   Types qui pointent vers un contenu cliquable
+   ✅ AJOUT : "reponse"
+   ============================================================ */
 const TYPES_CONTENU = [
   "signalement",
   "signalement_leve",
   "signalement_confirme",
   "suppression_contenu",
   "partage",
+  "mention",
+  "reponse",           // ✅ AJOUT
 ];
+
+/* Types à ne PAS afficher (gérés ailleurs dans l'app) */
+const TYPES_EXCLUS = ["message"];
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -112,16 +137,32 @@ export default function Notifications() {
     },
   });
 
-  const liste = data?.results || data || [];
+  const listeBrute = data?.results || data || [];
+  const liste = listeBrute.filter((n) => !TYPES_EXCLUS.includes(n.type));
   const nonLues = liste.filter((n) => !n.lu).length;
 
   function handleClick(n) {
     if (!n.lu) lireMutation.mutate(n.id);
 
-    // Notification liée à un contenu (signalement, partage…)
+    // ✅ Mentions : rediriger selon le cible_type
+    if (n.type === "mention") {
+      if (n.cible_type === "commentaire") {
+        navigate(`/commentaire/${n.cible_id}`);
+      } else if (n.cible_type === "publication") {
+        navigate(`/publication/${n.cible_id}`);
+      }
+      return;
+    }
+
+    // ✅ Réponses : toujours vers le commentaire
+    if (n.type === "reponse") {
+      navigate(`/commentaire/${n.cible_id}`);
+      return;
+    }
+
+    // Autres types de contenu
     if (TYPES_CONTENU.includes(n.type)) {
       if (n.cible_type === "repartage") {
-        // Pointe vers la publication du repartage
         navigate(`/publication/${n.cible_id}`);
       } else if (n.cible_type === "publication") {
         navigate(`/publication/${n.cible_id}`);
@@ -133,10 +174,9 @@ export default function Notifications() {
       return;
     }
 
-    // Autres notifications
+    // Autres
     if (n.cible_type === "publication") navigate("/");
     else if (n.cible_type === "profil") navigate(`/profil/${n.cible_id}`);
-    else if (n.cible_type === "message") navigate("/messages");
     else if (n.cible_type === "direct") navigate(`/direct/${n.cible_id}`);
   }
 
@@ -217,7 +257,11 @@ export default function Notifications() {
               <div className="notification-content">
                 <div className="notification-text">
                   <NomUtilisateur profil={n.acteur} taille="sm" />{" "}
-                  <span>{LIBELLES[n.type] || n.type}</span>
+                  <span>
+                    {n.type === "mention"
+                      ? libelleMention(n)
+                      : LIBELLES[n.type] || n.type}
+                  </span>
                 </div>
                 <div className="notification-time">
                   {formatRelative(n.cree_le)}

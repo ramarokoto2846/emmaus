@@ -29,17 +29,41 @@ class AuteurMiniSerializer(serializers.ModelSerializer):
 class CommentaireSerializer(serializers.ModelSerializer):
     auteur = AuteurMiniSerializer(source="auteur.profil", read_only=True)
     reponses = serializers.SerializerMethodField()
+    parent_info = serializers.SerializerMethodField()          # ✅ AJOUT
 
     class Meta:
         model = Commentaire
         fields = ("id", "auteur", "cible_type", "cible_id", "parent",
-                  "texte", "nb_amen", "statut", "cree_le", "reponses")
+                  "parent_info", "texte", "nb_amen", "statut",
+                  "cree_le", "reponses")                        # ✅ AJOUT
         read_only_fields = ("auteur", "nb_amen", "statut", "cree_le")
 
     def get_reponses(self, obj):
+        # ✅ Récursion + on propage le context (pour les URLs d'avatar)
+        enfants = (
+            obj.reponses
+            .filter(statut="visible")
+            .select_related("auteur__profil")
+            .order_by("cree_le")
+        )
         return CommentaireSerializer(
-            obj.reponses.filter(statut="visible"), many=True
+            enfants, many=True, context=self.context
         ).data
+
+    def get_parent_info(self, obj):
+        """Infos du commentaire parent (auteur + extrait)."""
+        if not obj.parent:
+            return None
+        parent = obj.parent
+        try:
+            auteur_nom = parent.auteur.profil.nom_affiche
+        except Exception:
+            auteur_nom = parent.auteur.pseudo
+        return {
+            "id": str(parent.id),
+            "auteur_nom": auteur_nom,
+            "texte": (parent.texte or "")[:80],
+        }
 
 
 class PublicationSerializer(serializers.ModelSerializer):
@@ -69,11 +93,9 @@ class PublicationSerializer(serializers.ModelSerializer):
         ).exists()
 
     def get_est_verifiee(self, obj):
-        """True si un modérateur a déjà examiné cette publication."""
         return obj.moderation_verifiee
 
     def get_publication_origine(self, obj):
-        """Aperçu complet de la publication d'origine."""
         if not obj.publication_origine:
             return None
         origine = obj.publication_origine
@@ -151,7 +173,6 @@ class PublicationSerializer(serializers.ModelSerializer):
         }
 
     def get_est_enregistree(self, obj):
-        """True si l'utilisateur courant a enregistré cette publication."""
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False

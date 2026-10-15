@@ -14,13 +14,15 @@ import AdminModerateurs from "./views/AdminModerateurs";
 import DetailPublication from "./views/DetailPublication";
 import DetailVideo from "./views/DetailVideo";
 import DetailCommentaire from "./views/DetailCommentaire";
-
 import Recherche from "./views/Recherche";
 import Moderation from "./views/Moderation";
 import AdminVersetsSidebar from "./views/AdminVersetsSidebar";
 import Login from "./views/Login";
 import Register from "./views/Register";
 
+/* ============================================================
+   Composant de protection des routes privées
+   ============================================================ */
 function Protege({ children }) {
   const access = useAuthStore((s) => s.access);
   if (!access) return <Navigate to="/login" replace />;
@@ -32,8 +34,11 @@ export default function App() {
     <>
       <IconSprite />
       <Routes>
+        {/* ---------- Routes publiques ---------- */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* ---------- Routes protégées (avec layout) ---------- */}
         <Route
           path="/"
           element={
@@ -55,11 +60,18 @@ export default function App() {
           <Route path="moderation" element={<Moderation />} />
           <Route path="admin/versets-sidebar" element={<AdminVersetsSidebar />} />
           <Route path="admin/moderateurs" element={<AdminModerateurs />} />
+
+          {/* ---------- Pages de détail ---------- */}
           <Route path="publication/:id" element={<DetailPublication />} />
           <Route path="video/:id" element={<DetailVideo />} />
-          <Route path="commentaire/:id" element={<DetailCommentaire />} />
 
+          {/* ✅ Route de redirection pour les mentions dans les commentaires
+              → DetailCommentaire charge le commentaire, récupère sa publication
+              → puis redirige vers /publication/:pubId?commentaire=:id */}
+          <Route path="commentaire/:id" element={<DetailCommentaire />} />
         </Route>
+
+        {/* ---------- Fallback ---------- */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

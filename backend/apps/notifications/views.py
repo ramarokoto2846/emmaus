@@ -1,6 +1,3 @@
-from django.shortcuts import render
-
-# Create your views here.
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -18,9 +15,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
     filterset_fields = ["lu", "type"]
 
     def get_queryset(self):
-        return Notification.objects.filter(
-            destinataire=self.request.user
-        ).select_related("acteur__profil")
+        # ✅ On exclut les notifications "message" (gérées par la messagerie)
+        return (
+            Notification.objects
+            .filter(destinataire=self.request.user)
+            .exclude(type="message")
+            .select_related("acteur__profil")
+        )
 
     @action(detail=True, methods=["post"])
     def lire(self, request, pk=None):
@@ -33,19 +34,22 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def tout_lire(self, request):
         Notification.objects.filter(
             destinataire=request.user, lu=False
-        ).update(lu=True)
+        ).exclude(type="message").update(lu=True)
         return Response({"ok": True})
 
     @action(detail=False, methods=["get"])
     def compter(self, request):
-        n = Notification.objects.filter(
-            destinataire=request.user, lu=False
-        ).count()
+        # ✅ On exclut aussi les "message" du compteur
+        n = (
+            Notification.objects
+            .filter(destinataire=request.user, lu=False)
+            .exclude(type="message")
+            .count()
+        )
         return Response({"non_lues": n})
 
     @action(detail=False, methods=["post"])
     def tout_supprimer(self, request):
-        """Supprime toutes les notifications de l'utilisateur."""
         nb, _ = Notification.objects.filter(
             destinataire=request.user
         ).delete()

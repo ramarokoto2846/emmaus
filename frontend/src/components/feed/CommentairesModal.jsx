@@ -1,11 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FiX,
   FiSend,
@@ -29,6 +25,90 @@ import {
 } from "../../api/endpoints";
 import { formatRelative } from "../../utils/format";
 
+/* ============================================================
+   APLATISSEMENT : chaque mère garde ses réponses
+   ============================================================ */
+function aplatirCommentaires(liste) {
+  /**
+   * Retourne un tableau de groupes :
+   * [
+   *   { mere: <commentaire mère>, reponses: [<rep1>, <rep2>, ...] },
+   *   { mere: <commentaire mère>, reponses: [...] },
+   * ]
+   *
+   * Toutes les réponses (à n'importe quel niveau) sont attachées
+   * à leur mère d'origine.
+   */
+  const groupes = [];
+
+  function collecterReponses(commentaire, bucket) {
+    if (commentaire.reponses && commentaire.reponses.length > 0) {
+      for (const r of commentaire.reponses) {
+        bucket.push(r);
+        collecterReponses(r, bucket);   // récursion pour descendre plus bas
+      }
+    }
+  }
+
+  for (const c of liste) {
+    const reponses = [];
+    collecterReponses(c, reponses);
+    groupes.push({ mere: c, reponses });
+  }
+
+  return groupes;
+}
+
+/* ============================================================
+   RENDU DES MENTIONS @pseudo
+   ============================================================ */
+function rendreMentions(texte, profils = []) {
+  if (!texte) return null;
+
+  const pseudos = (profils || [])
+    .map((p) => p.pseudo || p.utilisateur?.pseudo || p.nom_affiche)
+    .filter(Boolean);
+
+  let regex;
+  if (pseudos.length === 0) {
+    regex = /@([\w\u00C0-\u017F.-]+)/g;
+  } else {
+    const escaped = pseudos
+      .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    regex = new RegExp(`@(${escaped})`, "g");
+  }
+
+  return surlignerRegex(texte, regex);
+}
+
+function surlignerRegex(texte, regex) {
+  const parties = [];
+  let dernierIndex = 0;
+  let match;
+
+  while ((match = regex.exec(texte)) !== null) {
+    if (match.index > dernierIndex) {
+      parties.push(texte.slice(dernierIndex, match.index));
+    }
+    parties.push(
+      <span key={`${match.index}-${match[0]}`} className="mention">
+        {match[0]}
+      </span>
+    );
+    dernierIndex = match.index + match[0].length;
+  }
+
+  if (dernierIndex < texte.length) {
+    parties.push(texte.slice(dernierIndex));
+  }
+
+  return parties.length > 0 ? parties : texte;
+}
+
+/* ============================================================
+   COMPOSANT PRINCIPAL
+   ============================================================ */
 export default function CommentairesModal({ publication, onClose }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -109,7 +189,6 @@ export default function CommentairesModal({ publication, onClose }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Fermer le menu au clic extérieur
   useEffect(() => {
     function onClick() {
       setMenuOuvertId(null);
@@ -119,8 +198,6 @@ export default function CommentairesModal({ publication, onClose }) {
       return () => document.removeEventListener("click", onClick);
     }
   }, [menuOuvertId]);
-
-  // --- Actions partagées (utilisables pour les commentaires ET les réponses) ---
 
   function commencerEdition(c) {
     setEditionId(c.id);
@@ -169,7 +246,6 @@ export default function CommentairesModal({ publication, onClose }) {
     creerMutation.mutate({ text: t, parent: reponseA?.id });
   }
 
-  // Callbacks communs à passer à chaque Commentaire (récursif)
   const callbacks = {
     monProfil,
     editionId,
@@ -184,9 +260,11 @@ export default function CommentairesModal({ publication, onClose }) {
     menuOuvertId,
     setMenuOuvertId,
     onNavigate: navigate,
+    listeProfils: data?.profils_mentionnables || [],
   };
 
   const liste = data?.results || data || [];
+  const groupes = useMemo(() => aplatirCommentaires(liste), [liste]);
 
   const modal = (
     <div className="modal-overlay" onClick={onClose}>
@@ -201,7 +279,6 @@ export default function CommentairesModal({ publication, onClose }) {
           </button>
         </div>
 
-        {/* Aperçu publication */}
         <div className="commentaires-publication">
           <Avatar profil={publication.auteur} size="sm" />
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -213,7 +290,7 @@ export default function CommentairesModal({ publication, onClose }) {
           </div>
         </div>
 
-        {/* Liste */}
+        {/* ✅ CHAQUE GROUPE : mère + ses réponses juste en dessous */}
         <div className="commentaires-liste" ref={listeRef}>
           {isLoading ? (
             <p className="sub" style={{ textAlign: "center", padding: 20 }}>
@@ -224,13 +301,33 @@ export default function CommentairesModal({ publication, onClose }) {
               Aucun commentaire. Sois le premier !
             </p>
           ) : (
-            liste.map((c) => (
-              <Commentaire key={c.id} commentaire={c} {...callbacks} />
+            groupes.map(({ mere, reponses }) => (
+              <div key={mere.id} className="commentaire-groupe">
+                {/* La mère */}
+                <Commentaire
+                  commentaire={mere}
+                  estReponse={false}
+                  {...callbacks}
+                />
+
+                {/* Ses réponses, une seule tabulation */}
+                {reponses.length > 0 && (
+                  <div className="commentaires-reponses-groupe">
+                    {reponses.map((r) => (
+                      <Commentaire
+                        key={r.id}
+                        commentaire={r}
+                        estReponse={true}
+                        {...callbacks}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             ))
           )}
         </div>
 
-        {/* Bandeau de réponse */}
         {reponseA && (
           <div className="commentaires-reponse-info">
             <FiCornerDownRight size={14} />
@@ -243,7 +340,6 @@ export default function CommentairesModal({ publication, onClose }) {
           </div>
         )}
 
-        {/* Formulaire */}
         <form className="commentaires-form" onSubmit={envoyer}>
           <Avatar profil={monProfil} size="sm" />
           <input
@@ -269,7 +365,6 @@ export default function CommentairesModal({ publication, onClose }) {
         </form>
       </div>
 
-      {/* Modal signalement */}
       {signalementCible && (
         <Signalement
           cibleType="commentaire"
@@ -283,8 +378,12 @@ export default function CommentairesModal({ publication, onClose }) {
   return createPortal(modal, document.body);
 }
 
+/* ============================================================
+   COMPOSANT COMMENTAIRE (inchangé)
+   ============================================================ */
 function Commentaire({
   commentaire,
+  estReponse = false,
   monProfil,
   editionId,
   texteEdition,
@@ -298,15 +397,22 @@ function Commentaire({
   menuOuvertId,
   setMenuOuvertId,
   onNavigate,
+  listeProfils = [],
 }) {
   const estMoi = monProfil?.id && commentaire.auteur?.id === monProfil.id;
   const enEdition = editionId === commentaire.id;
   const menuOuvert = menuOuvertId === commentaire.id;
-  const aDesReponses =
-    commentaire.reponses && commentaire.reponses.length > 0;
+
+  const texteRendu = useMemo(
+    () => rendreMentions(commentaire.texte, listeProfils),
+    [commentaire.texte, listeProfils]
+  );
 
   return (
-    <div className="commentaire-bloc">
+    <div
+      className={`commentaire-bloc ${estReponse ? "est-reponse" : ""}`}
+      data-commentaire-id={commentaire.id}
+    >
       <div className="commentaire">
         <button
           onClick={() =>
@@ -314,6 +420,7 @@ function Commentaire({
             onNavigate(`/profil/${commentaire.auteur.id}`)
           }
           style={{ flex: "none" }}
+          aria-label="Voir le profil"
         >
           <Avatar profil={commentaire.auteur} size="sm" />
         </button>
@@ -342,10 +449,23 @@ function Commentaire({
             </div>
           ) : (
             <>
-              <div className="commentaire-bulle">
+              {estReponse && commentaire.parent_info && (
+                <div className="commentaire-repond-a">
+                  <FiCornerDownRight size={12} />
+                  <span>
+                    Réponse à <b>{commentaire.parent_info.auteur_nom}</b>
+                  </span>
+                </div>
+              )}
+
+              <div className="commentaire-nom">
                 <NomUtilisateur profil={commentaire.auteur} taille="sm" />
-                <span>{commentaire.texte}</span>
               </div>
+
+              <div className="commentaire-bulle">
+                <span>{texteRendu}</span>
+              </div>
+
               <div className="commentaire-meta">
                 <span>{formatRelative(commentaire.cree_le)}</span>
                 <button
@@ -359,7 +479,6 @@ function Commentaire({
           )}
         </div>
 
-        {/* Menu 3 points — MODIFIER/SUPPRIMER si moi, SIGNALER sinon */}
         {!enEdition && (
           <div
             className="commentaire-menu"
@@ -402,31 +521,6 @@ function Commentaire({
           </div>
         )}
       </div>
-
-      {/* Réponses imbriquées — récursif avec les MÊMES callbacks */}
-      {aDesReponses && (
-        <div className="commentaire-reponses">
-          {commentaire.reponses.map((r) => (
-            <Commentaire
-              key={r.id}
-              commentaire={r}
-              monProfil={monProfil}
-              editionId={editionId}
-              texteEdition={texteEdition}
-              setTexteEdition={setTexteEdition}
-              onEdition={onEdition}
-              onValiderEdition={onValiderEdition}
-              onAnnulerEdition={onAnnulerEdition}
-              onSupprimer={onSupprimer}
-              onRepondre={onRepondre}
-              onSignaler={onSignaler}
-              menuOuvertId={menuOuvertId}
-              setMenuOuvertId={setMenuOuvertId}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

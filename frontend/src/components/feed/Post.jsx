@@ -1,96 +1,65 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FiEdit2, FiTrash2, FiFlag, FiMoreHorizontal, FiCheckCircle, FiShare2 } from "react-icons/fi";
+import {
+  FiMessageCircle,
+  FiShare2,
+  FiMoreHorizontal,
+  FiBookmark,
+  FiTrash2,
+  FiFlag,
+  FiEdit2,
+  FiRepeat,
+  FiCheckCircle,
+} from "react-icons/fi";
+
 import Avatar from "../ui/Avatar";
 import NomUtilisateur from "../ui/NomUtilisateur";
-import Icon from "../ui/Icon";
-import VideoCard from "./VideoCard";
-import PublicationEmbarquee from "./PublicationEmbarquee";
-import CommentairesModal from "./CommentairesModal";
 import Signalement from "../ui/Signalement";
 import { useConfirmation } from "../ui/Confirmation";
 import { useToast } from "../ui/Toast";
-import ConfirmationEnregistrer from "../ui/ConfirmationEnregistrer";
+
+import CommentairesModal from "./CommentairesModal";
 import PartageModal from "./PartageModal";
+import VideoCard from "./VideoCard";
+
 import { useAuthStore } from "../../store/authStore";
 import {
   amenPublication,
-  enregistrerContenu,
-  majPublication,
   supprimerPublication,
+  enregistrerContenu,
+  repartager,
 } from "../../api/endpoints";
 import { formatRelative } from "../../utils/format";
 
-export default function Post({ publication }) {
+export default function Post({ publication, onOuvrirCommentaires }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const monProfil = useAuthStore((s) => s.profil);
   const confirmer = useConfirmation();
   const { afficher: afficherToast } = useToast();
+  const monProfil = useAuthStore((s) => s.profil);
 
   const [menuOuvert, setMenuOuvert] = useState(false);
-  const [editionOuverte, setEditionOuverte] = useState(false);
-  const [nouveauTexte, setNouveauTexte] = useState(publication.texte || "");
+  const [modaleCommentaires, setModaleCommentaires] = useState(false);
+  const [modalePartage, setModalePartage] = useState(false);
   const [signalementOuvert, setSignalementOuvert] = useState(false);
-  const [commentairesOuverts, setCommentairesOuverts] = useState(false);
-  const [confirmEnregistrerOuverte, setConfirmEnregistrerOuverte] = useState(false);
-  const [partageOuvert, setPartageOuvert] = useState(false);
-  const menuRef = useRef(null);
 
-  const auteur = publication.auteur;
-  const video = publication.video;
-  const verset = publication.verset;
-  const estAuteur = monProfil && auteur && monProfil.id === auteur.id;
+  const estMoi = publication.auteur?.id === monProfil?.id;
+  const estRepartage =
+    publication.type === "partage" && publication.publication_origine;
+  const estVerifiee = publication.est_verifiee === true;
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOuvert(false);
-      }
-    }
-    if (menuOuvert) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [menuOuvert]);
-
+  /* ---- Amen ---- */
   const amenMutation = useMutation({
     mutationFn: () => amenPublication(publication.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["fil"] });
+      qc.invalidateQueries({ queryKey: ["publication", publication.id] });
       qc.invalidateQueries({ queryKey: ["mes-publications"] });
-      qc.invalidateQueries({ queryKey: ["publications-profil"] });
     },
   });
 
-  const majMutation = useMutation({
-    mutationFn: (data) => majPublication(publication.id, data),
-    onSuccess: () => {
-      setEditionOuverte(false);
-      qc.invalidateQueries({ queryKey: ["fil"] });
-      qc.invalidateQueries({ queryKey: ["mes-publications"] });
-      qc.invalidateQueries({ queryKey: ["publications-profil"] });
-      afficherToast("Ta publication a été modifiée.", {
-        type: "success",
-        titre: "Publication mise à jour",
-      });
-    },
-  });
-
-  const supprMutation = useMutation({
-    mutationFn: () => supprimerPublication(publication.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["fil"] });
-      qc.invalidateQueries({ queryKey: ["mes-publications"] });
-      qc.invalidateQueries({ queryKey: ["publications-profil"] });
-      afficherToast("Ta publication a été supprimée.", {
-        type: "success",
-        titre: "Publication supprimée",
-      });
-    },
-  });
-
+  /* ---- Enregistrer ---- */
   const enregistrerMutation = useMutation({
     mutationFn: () =>
       enregistrerContenu({
@@ -100,241 +69,291 @@ export default function Post({ publication }) {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["enregistrements"] });
       qc.invalidateQueries({ queryKey: ["enregistrements-count"] });
-      qc.invalidateQueries({ queryKey: ["fil"] });
-
+      qc.invalidateQueries({ queryKey: ["publication", publication.id] });
       afficherToast(
-        data.enregistre
-          ? "Le contenu est ajouté à tes enregistrements."
-          : "Le contenu a été retiré de tes enregistrements.",
+        data?.enregistre
+          ? "Publication enregistrée."
+          : "Retiré des enregistrements.",
         {
           type: "success",
-          titre: data.enregistre ? "🔖 Enregistré" : "Retiré",
+          titre: data?.enregistre ? "Enregistré" : "Retiré",
         }
       );
     },
   });
 
-  function handleEnregistrer() {
-    setConfirmEnregistrerOuverte(true);
-  }
+  /* ---- Repartager ---- */
+  const repartagerMutation = useMutation({
+    mutationFn: () => repartager(publication.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fil"] });
+      qc.invalidateQueries({ queryKey: ["mes-publications"] });
+      qc.invalidateQueries({ queryKey: ["publication", publication.id] });
+      afficherToast("Publication repartagée sur ton mur.", {
+        type: "success",
+        titre: "Repartagé",
+      });
+    },
+    onError: (err) => {
+      const msg =
+        err?.response?.data?.detail ||
+        "Impossible de repartager cette publication.";
+      afficherToast(msg, { type: "error", titre: "Erreur" });
+    },
+  });
 
-  function validerEnregistrer() {
-    setConfirmEnregistrerOuverte(false);
-    enregistrerMutation.mutate();
-  }
-
-  function enregistrerEdition() {
-    const t = nouveauTexte.trim();
-    if (!t) return;
-    majMutation.mutate({ texte: t });
-  }
-
+  /* ---- Supprimer ---- */
   async function supprimer() {
-    setMenuOuvert(false);
     const ok = await confirmer({
       titre: "Supprimer cette publication ?",
       message: "Cette action est définitive.",
       labelConfirmer: "Supprimer",
-      labelAnnuler: "Annuler",
       danger: true,
     });
-    if (ok) supprMutation.mutate();
+    if (!ok) return;
+    try {
+      await supprimerPublication(publication.id);
+      qc.invalidateQueries({ queryKey: ["fil"] });
+      qc.invalidateQueries({ queryKey: ["mes-publications"] });
+      afficherToast("Publication supprimée.", {
+        type: "success",
+        titre: "Supprimée",
+      });
+    } catch {
+      afficherToast("Erreur lors de la suppression.", {
+        type: "error",
+        titre: "Erreur",
+      });
+    }
+  }
+
+  /* ---- Ouvrir les commentaires ---- */
+  function ouvrirCommentaires() {
+    if (onOuvrirCommentaires) {
+      onOuvrirCommentaires();
+    } else {
+      setModaleCommentaires(true);
+    }
+  }
+
+  function allerProfil(id) {
+    if (id) navigate(`/profil/${id}`);
+  }
+
+  function allerPublication(id) {
+    if (id) navigate(`/publication/${id}`);
   }
 
   return (
-    <article
-      className={`card post ${
-        publication.publication_origine ? "post-repartage" : ""
-      }`}
-    >
-      
-      {/* Bandeau "a partagé" style Facebook */}
-      {publication.publication_origine && (
-        <div className="fb-partage-indicateur">
-          <FiShare2 size={15} />
-          <span>
-            <b>{auteur?.nom_affiche || "Quelqu'un"}</b> a partagé
-          </span>
-        </div>
-      )}
+    <>
+      <article className={`card post ${estRepartage ? "post-repartage" : ""}`}>
+        {estRepartage && (
+          <div className="fb-partage-indicateur">
+            <FiRepeat size={14} />
+            <span>
+              <b>{publication.auteur?.nom_affiche}</b> a repartagé
+            </span>
+          </div>
+        )}
 
-      <div className="ph">
-        <button
-          className="who"
-          onClick={() => auteur?.id && navigate(`/profil/${auteur.id}`)}
-        >
-          <Avatar profil={auteur} />
+        {/* ============================================================
+            EN-TÊTE
+            ✅ Vérifiée → badge "Vérifié" (pas de menu, pas de signalement)
+            ✅ Non vérifiée → menu 3 points + Signaler
+           ============================================================ */}
+        <header className="ph">
+          <button
+            onClick={() => allerProfil(publication.auteur?.id)}
+            style={{ flex: "none" }}
+            aria-label="Voir le profil"
+          >
+            <Avatar profil={publication.auteur} size="sm" />
+          </button>
+
           <div>
-            <NomUtilisateur profil={auteur} taille="sm" />
-            <br />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <NomUtilisateur profil={publication.auteur} taille="sm" />
+            </div>
             <small>{formatRelative(publication.cree_le)}</small>
           </div>
-        </button>
 
-        {/* Menu 3 points OU badge Vérifié */}
-        <div className="post-menu" ref={menuRef}>
-          {publication.est_verifiee && !estAuteur ? (
+          {estVerifiee ? (
+            // ✅ Publication vérifiée : badge à droite, pas de menu
             <span
               className="badge-verifie"
-              title="Contenu vérifié par la modération"
+              title="Contenu vérifié par la modération — ne peut plus être signalé"
             >
-              <FiCheckCircle size={16} />
-              <span>Vérifié</span>
+              <FiCheckCircle size={14} /> Vérifié
             </span>
           ) : (
-            <button
-              className="more"
-              aria-label="Plus d'options"
-              onClick={() => setMenuOuvert((v) => !v)}
-            >
-              <FiMoreHorizontal size={20} />
-            </button>
-          )}
+            // ✅ Publication normale : menu 3 points + signaler
+            <div className="post-menu" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="more"
+                onClick={() => setMenuOuvert(!menuOuvert)}
+                aria-label="Options"
+              >
+                <FiMoreHorizontal size={18} />
+              </button>
 
-          {menuOuvert && (
-            <div className="post-menu-list">
-              {estAuteur ? (
-                <>
-                  <button
-                    onClick={() => {
-                      setEditionOuverte(true);
-                      setNouveauTexte(publication.texte || "");
-                      setMenuOuvert(false);
-                    }}
-                  >
-                    <FiEdit2 size={15} /> Modifier
-                  </button>
-                  <button onClick={supprimer} className="danger">
-                    <FiTrash2 size={15} /> Supprimer
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    setSignalementOuvert(true);
-                    setMenuOuvert(false);
-                  }}
-                  className="danger"
-                >
-                  <FiFlag size={15} /> Signaler
-                </button>
+              {menuOuvert && (
+                <div className="post-menu-list">
+                  {estMoi ? (
+                    <>
+                      <button onClick={() => allerPublication(publication.id)}>
+                        <FiEdit2 size={14} /> Voir
+                      </button>
+                      <button onClick={supprimer} className="danger">
+                        <FiTrash2 size={14} /> Supprimer
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setSignalementOuvert(true);
+                        setMenuOuvert(false);
+                      }}
+                      className="danger"
+                    >
+                      <FiFlag size={14} /> Signaler
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
-        </div>
-      </div>
+        </header>
 
-      {/* TEXTE ou ÉDITION */}
-      {editionOuverte ? (
-        <div style={{ margin: "14px 0" }}>
-          <textarea
-            value={nouveauTexte}
-            onChange={(e) => setNouveauTexte(e.target.value)}
-            rows={4}
-            autoFocus
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid var(--line)",
-              background: "var(--bg)",
-              color: "var(--ink)",
-              font: "inherit",
-              resize: "vertical",
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              justifyContent: "flex-end",
-              marginTop: 8,
-            }}
-          >
-            <button
-              className="btn alt"
-              onClick={() => setEditionOuverte(false)}
-              disabled={majMutation.isPending}
-            >
-              Annuler
-            </button>
-            <button
-              className="btn"
-              onClick={enregistrerEdition}
-              disabled={majMutation.isPending || !nouveauTexte.trim()}
-            >
-              {majMutation.isPending ? "…" : "Enregistrer"}
-            </button>
+        {/* Texte */}
+        {publication.texte && (
+          <p style={{ margin: "12px 0", whiteSpace: "pre-wrap" }}>
+            {publication.texte}
+          </p>
+        )}
+
+        {/* Vidéo */}
+        {publication.video && (
+          <div className="vid-bloc">
+            <VideoCard video={publication.video} index={0} aspect="16/9" />
           </div>
+        )}
+
+        {/* Verset */}
+        {publication.verset && (
+          <div className="fb-embed-verset">
+            <div className="fb-embed-verset-ref">
+              <span>📖 {publication.verset.reference}</span>
+            </div>
+            <p>{publication.verset.texte}</p>
+          </div>
+        )}
+
+        {/* Repartage */}
+        {estRepartage && (
+          <div
+            className="fb-embed"
+            onClick={() => allerPublication(publication.publication_origine.id)}
+          >
+            <div className="fb-embed-header">
+              <Avatar
+                profil={publication.publication_origine.auteur}
+                size="sm"
+              />
+              <div className="fb-embed-header-info">
+                <b>{publication.publication_origine.auteur?.nom_affiche}</b>
+                <small>
+                  {formatRelative(publication.publication_origine.cree_le)}
+                </small>
+              </div>
+            </div>
+
+            {publication.publication_origine.texte && (
+              <p className="fb-embed-texte">
+                {publication.publication_origine.texte}
+              </p>
+            )}
+
+            {publication.publication_origine.video && (
+              <div className="fb-embed-media">
+                <VideoCard
+                  video={publication.publication_origine.video}
+                  index={1}
+                  aspect="16/9"
+                />
+              </div>
+            )}
+
+            {publication.publication_origine.verset && (
+              <div className="fb-embed-verset">
+                <div className="fb-embed-verset-ref">
+                  <span>
+                    📖 {publication.publication_origine.verset.reference}
+                  </span>
+                </div>
+                <p>{publication.publication_origine.verset.texte}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="acts">
+          <button
+            className={publication.est_amen ? "on" : ""}
+            onClick={() => amenMutation.mutate()}
+            disabled={amenMutation.isPending}
+            aria-label="Amen"
+          >
+            <svg className="i">
+              <use href="#flame" />
+            </svg>
+            <span>{publication.nb_amen || 0}</span>
+          </button>
+
+          <button onClick={ouvrirCommentaires} aria-label="Commenter">
+            <FiMessageCircle size={18} />
+            <span>{publication.nb_commentaires || 0}</span>
+          </button>
+
+          <button onClick={() => setModalePartage(true)} aria-label="Partager">
+            <FiShare2 size={18} />
+            <span>{publication.nb_partages || 0}</span>
+          </button>
+
+          <button
+            className={`sv ${publication.est_enregistree ? "on" : ""}`}
+            onClick={() => enregistrerMutation.mutate()}
+            disabled={enregistrerMutation.isPending}
+            aria-label="Enregistrer"
+          >
+            <FiBookmark size={18} />
+          </button>
+
+          <button
+            onClick={() => repartagerMutation.mutate()}
+            disabled={repartagerMutation.isPending}
+            aria-label="Repartager"
+            title="Repartager sur mon mur"
+          >
+            <FiRepeat size={18} />
+          </button>
         </div>
-      ) : (
-        publication.texte && <p>{publication.texte}</p>
-      )}
+      </article>
 
-      {publication.publication_origine && (
-        <PublicationEmbarquee origine={publication.publication_origine} />
-      )}
-
-      {video && <VideoCard video={video} />}
-
-      {verset && (
-        <span className="chip">
-          <Icon name="book" />
-          {verset.reference}
-        </span>
-      )}
-
-      <div className="acts">
-        <button
-          className={publication.est_amen ? "on" : ""}
-          onClick={() => amenMutation.mutate()}
-        >
-          <Icon name="flame" />
-          Amen · <span>{publication.nb_amen}</span>
-        </button>
-        <button onClick={() => setCommentairesOuverts(true)}>
-          <Icon name="chat" />
-          {publication.nb_commentaires}
-        </button>
-        <button onClick={() => setPartageOuvert(true)}>
-          <Icon name="share" />
-          Partager
-        </button>
-        <button
-          className={`sv ${publication.est_enregistree ? "on" : ""}`}
-          aria-label="Enregistrer"
-          onClick={handleEnregistrer}
-        >
-          <Icon name="mark" />
-        </button>
-      </div>
-
-      {/* Modal partage */}
-      {partageOuvert && (
-        <PartageModal
-          publication={publication}
-          onClose={() => setPartageOuvert(false)}
-        />
-      )}
-
-      {/* Modal enregistrer */}
-      {confirmEnregistrerOuverte && (
-        <ConfirmationEnregistrer
-          dejaEnregistre={publication.est_enregistree}
-          onConfirmer={validerEnregistrer}
-          onAnnuler={() => setConfirmEnregistrerOuverte(false)}
-        />
-      )}
-
-      {/* Modal commentaires */}
-      {commentairesOuverts && (
+      {modaleCommentaires && (
         <CommentairesModal
           publication={publication}
-          onClose={() => setCommentairesOuverts(false)}
+          onClose={() => setModaleCommentaires(false)}
         />
       )}
 
-      {/* Modal signalement */}
+      {modalePartage && (
+        <PartageModal
+          publication={publication}
+          onClose={() => setModalePartage(false)}
+        />
+      )}
+
       {signalementOuvert && (
         <Signalement
           cibleType="publication"
@@ -342,6 +361,6 @@ export default function Post({ publication }) {
           onClose={() => setSignalementOuvert(false)}
         />
       )}
-    </article>
+    </>
   );
 }

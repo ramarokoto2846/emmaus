@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from apps.feed.serializers import AuteurMiniSerializer
 from .models import Notification
 

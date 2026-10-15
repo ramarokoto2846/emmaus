@@ -21,11 +21,17 @@ class TypeNotification(models.TextChoices):
     RETROGRADATION = "retrogradation"
     SUPPRESSION_CONTENU = "suppression_contenu"
     PARTAGE = "partage"
+    MENTION = "mention"
+    REPONSE = "reponse"                   
 
 
 class Notification(UUIDModel):
-    destinataire = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name="notifications")
-    acteur = models.ForeignKey(Utilisateur, on_delete=models.SET_NULL, null=True, blank=True)
+    destinataire = models.ForeignKey(
+        Utilisateur, on_delete=models.CASCADE, related_name="notifications"
+    )
+    acteur = models.ForeignKey(
+        Utilisateur, on_delete=models.SET_NULL, null=True, blank=True
+    )
     type = models.CharField(max_length=20, choices=TypeNotification.choices)
     cible_type = models.CharField(max_length=20, blank=True)
     cible_id = models.UUIDField(null=True, blank=True)
@@ -35,3 +41,6 @@ class Notification(UUIDModel):
     class Meta:
         db_table = "notifications"
         indexes = [models.Index(fields=["destinataire", "lu", "-cree_le"])]
+
+    def __str__(self):
+        return f"{self.acteur} → {self.destinataire} ({self.type})"
