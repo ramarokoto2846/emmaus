@@ -115,8 +115,35 @@ class VideoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly, EstAuteurOuLectureSeule]
     pagination_class = StandardPagination
     filterset_fields = ["type", "format", "statut", "visibilite", "auteur", "eglise"]
-    search_fields = ["titre", "description"]
+    search_fields = ["titre", "description"]     # ✅ recherche floue sur titre + description
     ordering_fields = ["publie_le", "nb_vues", "nb_amen", "cree_le"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        # ✅ Filtre par durée (en minutes) — paramètre custom
+        min_duree = self.request.query_params.get("min_duree")
+        max_duree = self.request.query_params.get("max_duree")
+
+        if min_duree:
+            try:
+                qs = qs.filter(duree_secondes__gte=int(min_duree) * 60)
+            except ValueError:
+                pass
+
+        if max_duree:
+            try:
+                qs = qs.filter(duree_secondes__lte=int(max_duree) * 60)
+            except ValueError:
+                pass
+
+        # Filtre statut (visible publiquement)
+        if self.request.user.is_authenticated and self.action != "retrieve":
+            return (
+                qs.filter(statut=StatutVideo.PUBLIE)
+                | qs.filter(auteur=self.request.user)
+            )
+        return qs.filter(statut=StatutVideo.PUBLIE)
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
@@ -125,93 +152,16 @@ class VideoViewSet(viewsets.ModelViewSet):
             return VideoDetailSerializer
         return VideoListeSerializer
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        if self.request.user.is_authenticated and self.action != "retrieve":
-            return (
-                qs.filter(statut=StatutVideo.PUBLIE)
-                | qs.filter(auteur=self.request.user)
-            )
-        return qs.filter(statut=StatutVideo.PUBLIE)
-
     def perform_create(self, serializer):
         serializer.save(auteur=self.request.user)
 
     def perform_update(self, serializer):
-        """
-        ✅ Si la vidéo était vérifiée par la modération,
-        on retire le badge quand l'auteur la modifie.
-        Elle devra être réexaminée.
-        """
         video = self.get_object()
         etait_verifiee = video.moderation_verifiee
-
         instance = serializer.save()
-
         if etait_verifiee:
             instance.moderation_verifiee = False
             instance.save(update_fields=["moderation_verifiee"])
-
-    @action(detail=True, methods=["post"])
-    def publier(self, request, pk=None):
-        video = self.get_object()
-        video.statut = StatutVideo.PUBLIE
-        video.publie_le = timezone.now()
-        video.save(update_fields=["statut", "publie_le"])
-        from apps.accounts.models import Profil
-        Profil.objects.filter(utilisateur=request.user).update(
-            nb_videos=F("nb_videos") + 1
-        )
-        return Response({"statut": video.statut, "publie_le": video.publie_le})
-
-    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
-    def vue(self, request, pk=None):
-        """Enregistre une vue unique par utilisateur."""
-        video = self.get_object()
-
-        utilisateur = request.user if request.user.is_authenticated else None
-
-        if utilisateur:
-            vue, created = VueVideo.objects.get_or_create(
-                video=video,
-                utilisateur=utilisateur,
-                defaults={
-                    "duree_regardee_secondes": int(
-                        request.data.get("duree_regardee_secondes", 0)
-                    ),
-                    "position_reprise_secondes": int(
-                        request.data.get("position_reprise_secondes", 0)
-                    ),
-                    "termine": bool(request.data.get("termine", False)),
-                },
-            )
-
-            if not created:
-                vue.duree_regardee_secondes = int(
-                    request.data.get("duree_regardee_secondes", vue.duree_regardee_secondes)
-                )
-                vue.position_reprise_secondes = int(
-                    request.data.get("position_reprise_secondes", vue.position_reprise_secondes)
-                )
-                if request.data.get("termine"):
-                    vue.termine = True
-                vue.save()
-
-            if created:
-                Video.objects.filter(pk=video.pk).update(nb_vues=F("nb_vues") + 1)
-
-            return Response({
-                "vue": True,
-                "nouvelle": created,
-                "nb_vues": Video.objects.get(pk=video.pk).nb_vues,
-            })
-
-        Video.objects.filter(pk=video.pk).update(nb_vues=F("nb_vues") + 1)
-        return Response({
-            "vue": True,
-            "nouvelle": True,
-            "nb_vues": Video.objects.get(pk=video.pk).nb_vues,
-        })
 
 
 class VersetDuJourView(viewsets.ViewSet):

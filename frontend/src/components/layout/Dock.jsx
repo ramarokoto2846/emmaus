@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   FiHome,
@@ -15,9 +16,11 @@ import { compterNotifications, conversations } from "../../api/endpoints";
 
 export default function Dock() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [visible, setVisible] = useState(true);
   const [popupOuverte, setPopupOuverte] = useState(false);
   const lastY = useRef(0);
+  const ticking = useRef(false);
 
   const { data: notifs } = useQuery({
     queryKey: ["notifications-count"],
@@ -38,25 +41,35 @@ export default function Dock() {
   );
   const notifsNonLues = notifs?.non_lues || 0;
 
-  // Masquer/afficher le dock au scroll
   useEffect(() => {
+    const seuil = window.innerWidth <= 720 ? 15 : 10;
+
     function onScroll() {
-      const y = window.scrollY;
-      if (y < 80) {
-        setVisible(true);
+      if (ticking.current) return;
+      ticking.current = true;
+
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const diff = y - lastY.current;
+
+        if (y < 100) setVisible(true);
+        else if (diff > seuil) setVisible(false);
+        else if (diff < -seuil) setVisible(true);
+
         lastY.current = y;
-        return;
-      }
-      const diff = y - lastY.current;
-      if (diff > 10) setVisible(false);
-      else if (diff < -10) setVisible(true);
-      lastY.current = y;
+        ticking.current = false;
+      });
     }
+
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Échap ferme la popup
+  useEffect(() => {
+    setVisible(true);
+    setPopupOuverte(false);
+  }, [location.pathname]);
+
   useEffect(() => {
     function onKey(e) {
       if (e.key === "Escape") setPopupOuverte(false);
@@ -79,11 +92,22 @@ export default function Dock() {
     navigate("/?composer=1");
   }
 
-  return (
+  const contenu = (
     <>
       <nav
         className={`dock ${visible ? "visible" : "cache"}`}
         aria-label="Navigation"
+        style={{
+          position: "fixed",
+          bottom: "16px",
+          left: "50%",
+          transform: visible
+            ? "translateX(-50%) translateY(0)"
+            : "translateX(-50%) translateY(200%)",
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? "auto" : "none",
+          zIndex: 99999,
+        }}
       >
         <NavLink to="/" end className={linkClass}>
           <FiHome size={22} />
@@ -120,7 +144,6 @@ export default function Dock() {
         </NavLink>
       </nav>
 
-      {/* Popup centrée */}
       {popupOuverte && (
         <div className="popup-overlay" onClick={() => setPopupOuverte(false)}>
           <div className="popup-publier" onClick={(e) => e.stopPropagation()}>
@@ -157,4 +180,7 @@ export default function Dock() {
       )}
     </>
   );
+
+  // ✅ PORTAL : rend le dock DIRECTEMENT dans document.body
+  return createPortal(contenu, document.body);
 }

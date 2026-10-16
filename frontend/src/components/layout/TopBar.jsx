@@ -14,6 +14,7 @@ import {
   FiSettings,
 } from "react-icons/fi";
 import VersetSidebar from "./VersetSidebar";
+import ModalRecherche from "./ModalRecherche";
 import { useAuthStore } from "../../store/authStore";
 import { compterSignalements } from "../../api/endpoints";
 import { useConfirmation } from "../ui/Confirmation";
@@ -25,6 +26,7 @@ export default function TopBar() {
   );
   const [menuOuvert, setMenuOuvert] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const [modaleRecherche, setModaleRecherche] = useState(false);
   const [estMobile, setEstMobile] = useState(
     typeof window !== "undefined" && window.innerWidth <= 1100
   );
@@ -62,7 +64,6 @@ export default function TopBar() {
     else root.dataset.theme = theme;
   }, [theme]);
 
-  // Calculer la position du menu quand il s'ouvre
   useEffect(() => {
     if (menuOuvert && avatarRef.current) {
       const rect = avatarRef.current.getBoundingClientRect();
@@ -73,7 +74,6 @@ export default function TopBar() {
     }
   }, [menuOuvert]);
 
-  // Fermer au clic extérieur + au scroll
   useEffect(() => {
     function handleClickOutside(e) {
       if (
@@ -103,12 +103,12 @@ export default function TopBar() {
     );
   }
 
-  function onSearch(e) {
-    e.preventDefault();
-    const v = q.trim();
-    if (v.length >= 2) {
-      navigate(`/recherche?q=${encodeURIComponent(v)}`);
-    }
+  /* ============================================================
+     ✅ NOUVEAU : clic sur la barre de recherche → ouvre la modale
+     ============================================================ */
+  function ouvrirModaleRecherche() {
+    setModaleRecherche(true);
+    setMenuOuvert(false);
   }
 
   async function handleLogout() {
@@ -131,7 +131,9 @@ export default function TopBar() {
     navigate(path);
   }
 
-  // Le menu à afficher dans le portal
+  /* ============================================================
+     Menu utilisateur (portal)
+     ============================================================ */
   const menuContent = menuOuvert ? (
     <div
       className="top-menu-portal"
@@ -203,10 +205,10 @@ export default function TopBar() {
           <button onClick={() => goTo("/moderation")}>
             <FiShield size={16} />
             <span>Modération</span>
-          {nbSignalements > 0 && (
-                        <span className="badge-inline">{nbSignalements}</span>
-                      )}
-                    </button>
+            {nbSignalements > 0 && (
+              <span className="badge-inline">{nbSignalements}</span>
+            )}
+          </button>
           {estAdmin && (
             <button onClick={() => goTo("/admin/versets-sidebar")}>
               <FiBookOpen size={16} />
@@ -233,15 +235,22 @@ export default function TopBar() {
           <>
             <div className="top-logo-mobile">Emmaüs</div>
 
-            <form className="search" onSubmit={onSearch}>
+            {/* ✅ Barre de recherche : clic ouvre la modale */}
+            <div
+              className="search"
+              onClick={ouvrirModaleRecherche}
+              role="button"
+              tabIndex={0}
+              aria-label="Rechercher"
+            >
               <FiSearch size={18} />
               <input
                 placeholder="Chercher…"
                 aria-label="Rechercher"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
+                readOnly
+                style={{ cursor: "pointer" }}
               />
-            </form>
+            </div>
 
             <button
               className="ic-round"
@@ -278,15 +287,22 @@ export default function TopBar() {
         ) : (
           /* DESKTOP */
           <>
-            <form className="search" onSubmit={onSearch}>
+            {/* ✅ Barre de recherche : clic ouvre la modale */}
+            <div
+              className="search"
+              onClick={ouvrirModaleRecherche}
+              role="button"
+              tabIndex={0}
+              aria-label="Rechercher"
+            >
               <FiSearch size={18} />
               <input
                 placeholder="Chercher une prédication, un pasteur, une église"
                 aria-label="Rechercher"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
+                readOnly
+                style={{ cursor: "pointer" }}
               />
-            </form>
+            </div>
 
             <button
               className="ic-round"
@@ -306,8 +322,13 @@ export default function TopBar() {
         )}
       </div>
 
-      {/* PORTAL : le menu est rendu à la racine du DOM */}
+      {/* PORTAL : menu utilisateur */}
       {menuContent && createPortal(menuContent, document.body)}
+
+      {/* ✅ MODAL DE RECHERCHE */}
+      {modaleRecherche && (
+        <ModalRecherche onClose={() => setModaleRecherche(false)} />
+      )}
     </>
   );
 }

@@ -246,3 +246,9 @@ export const repartager = (id, texte = "") =>
   api.post(`/publications/${id}/repartager/`, { texte }).then((r) => r.data);
 export const verifierRepartage = (id) =>
   api.get(`/publications/${id}/verifier_repartage/`).then((r) => r.data);
+
+// ============================================
+// RECHERCHE AVANCÉE (modal TopBar)
+// ============================================
+export const rechercherVideos = (params) =>
+  api.get("/videos/", { params }).then((r) => r.data);

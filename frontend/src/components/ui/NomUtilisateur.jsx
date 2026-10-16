@@ -1,20 +1,18 @@
-/**
- * Badges de rôle inspirés du logo Emmaüs.
- * Forme ronde, dégradé bordeaux/or, icône flamme stylisée.
- */
+import BadgeModerateur from "./BadgeModerateur";
+import BadgeAdmin from "./BadgeAdmin";
 
-function Badge({ variant, size = 16, title }) {
+function Badge({ variant, size = 16, title, niveau }) {
+  // ✅ Badge modérateur : composant dédié avec progression
+  if (variant === "moderateur") {
+    return <BadgeModerateur size={size} niveau={niveau || 1} />;
+  }
+
+  // ✅ Badge admin : composant dédié avec couronne
+  if (variant === "admin") {
+    return <BadgeAdmin size={size} />;
+  }
+
   const styles = {
-    admin: {
-      bg: "linear-gradient(135deg, #F3D27A 0%, #D4A233 50%, #B8872A 100%)",
-      color: "#5A1220",
-      shadow: "0 2px 8px rgba(212, 162, 51, 0.5)",
-    },
-    moderateur: {
-      bg: "linear-gradient(135deg, #8E2233 0%, #7B1E2B 50%, #4A0F1A 100%)",
-      color: "#F3D27A",
-      shadow: "0 2px 8px rgba(123, 30, 43, 0.45)",
-    },
     pasteur: {
       bg: "linear-gradient(135deg, #5A1220 0%, #2A0F14 50%, #1A0A0E 100%)",
       color: "#E3B94F",
@@ -27,11 +25,11 @@ function Badge({ variant, size = 16, title }) {
     },
   };
 
-  const s = styles[variant] || styles.moderateur;
+  const s = styles[variant] || styles.pasteur;
 
   return (
     <span
-      className="badge-role"
+      className={`badge-role badge-role-${variant}`}
       style={{
         width: size,
         height: size,
@@ -44,11 +42,10 @@ function Badge({ variant, size = 16, title }) {
     >
       <svg
         viewBox="0 0 24 24"
-        width={size * 0.6}
-        height={size * 0.6}
+        width={size * 0.62}
+        height={size * 0.62}
         fill="currentColor"
       >
-        {/* Flamme stylisée (inspirée du logo Emmaüs) */}
         <path d="M12 2c0 4-3 6-3 10a3 3 0 0 0 6 0c0-1.5-1-2.5-1-4 0 2 1.5 3 2.5 4.5S18 15 18 16a6 6 0 1 1-12 0c0-5 6-8 6-14z" />
       </svg>
     </span>
@@ -64,18 +61,27 @@ export default function NomUtilisateur({
 
   const nom = profil.nom_affiche || profil.pseudo || "Utilisateur";
   const role = profil.role;
+  const niveauMod = profil.niveau_moderateur || 1;
 
   const badgeSize = taille === "sm" ? 15 : 18;
 
   return (
     <span className="nom-utilisateur">
-      <span className={className}>{nom}</span>
+      <span
+        className={`nom-utilisateur-texte ${className}`}
+        title={nom}
+      >
+        {nom}
+      </span>
 
-      {role === "admin" && (
-        <Badge variant="admin" size={badgeSize} title="Administrateur" />
-      )}
+      {role === "admin" && <Badge variant="admin" size={badgeSize} />}
       {role === "moderateur" && (
-        <Badge variant="moderateur" size={badgeSize} title="Modérateur" />
+        <Badge
+          variant="moderateur"
+          size={badgeSize}
+          niveau={niveauMod}
+          title="Modérateur"
+        />
       )}
       {role === "pasteur" && (
         <Badge variant="pasteur" size={badgeSize} title="Pasteur" />

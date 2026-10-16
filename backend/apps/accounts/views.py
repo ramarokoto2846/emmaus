@@ -232,6 +232,8 @@ class ProfilViewSet(viewsets.ReadOnlyModelViewSet):
                 "email": u.email,
                 "nom_affiche": u.profil.nom_affiche,
                 "initiales": u.profil.initiales,
+                "niveau_moderateur": u.niveau_moderateur,
+                "nb_signalements_traites": u.nb_signalements_traites,  # ✅ Renommé
                 "avatar": (
                     request.build_absolute_uri(u.profil.avatar.url)
                     if u.profil.avatar

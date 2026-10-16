@@ -1,29 +1,31 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Avatar from "../components/ui/Avatar";
 import NomUtilisateur from "../components/ui/NomUtilisateur";
 import { profils, suivre } from "../api/endpoints";
 import { useAuthStore } from "../store/authStore";
 
-const FILTRES = [
-  { k: "", label: "Tous" },
-  { k: "pasteur", label: "Pasteurs & enseignants" },
-  { k: "chaine_eglise", label: "Églises" },
-];
-
 export default function Discover() {
-  const [filtre, setFiltre] = useState("");
-  const [recherche, setRecherche] = useState("");
   const navigate = useNavigate();
   const qc = useQueryClient();
   const monProfil = useAuthStore((s) => s.profil);
+  const [searchParams] = useSearchParams();
+
+  // ✅ Initialise depuis le query param ?q=
+  const qInitial = searchParams.get("q") || "";
+  const [recherche, setRecherche] = useState(qInitial);
+
+  // ✅ Synchronise si l'URL change (ex: clic TopBar)
+  useEffect(() => {
+    const q = searchParams.get("q") || "";
+    setRecherche(q);
+  }, [searchParams]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["profils", filtre, recherche],
+    queryKey: ["profils", recherche],
     queryFn: () =>
       profils({
-        utilisateur__role: filtre || undefined,
         search: recherche || undefined,
       }),
   });
@@ -59,6 +61,7 @@ export default function Discover() {
         Pasteurs, églises, chanteurs et témoins : trouve des voix à suivre.
       </p>
 
+      {/* Barre de recherche */}
       <input
         type="text"
         placeholder="Rechercher par nom, ville, sous-titre…"
@@ -75,17 +78,7 @@ export default function Discover() {
         }}
       />
 
-      <div className="chips">
-        {FILTRES.map((f) => (
-          <button
-            key={f.k}
-            className={`fc ${filtre === f.k ? "on" : ""}`}
-            onClick={() => setFiltre(f.k)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {/* ✅ Les chips (Tous / Pasteurs / Églises) sont SUPPRIMÉES */}
 
       {isLoading ? (
         <p className="sub">Chargement…</p>
@@ -107,11 +100,14 @@ export default function Discover() {
                 tabIndex={0}
                 onClick={() => navigate(`/profil/${p.id}`)}
               >
+                {/* ✅ Photo de couverture (ou dégradé par défaut) */}
                 <div
                   className="cv2"
                   style={{
                     background:
-                      "linear-gradient(135deg, #6B1626, #A8323F 55%, #E3B94F)",
+                      p.couverture || p.couverture_url
+                        ? `url(${p.couverture || p.couverture_url}) center/cover`
+                        : "linear-gradient(135deg, #6B1626, #A8323F 55%, #E3B94F)",
                   }}
                 />
                 <Avatar profil={p} />

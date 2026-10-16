@@ -29,23 +29,13 @@ import { formatRelative } from "../../utils/format";
    APLATISSEMENT : chaque mère garde ses réponses
    ============================================================ */
 function aplatirCommentaires(liste) {
-  /**
-   * Retourne un tableau de groupes :
-   * [
-   *   { mere: <commentaire mère>, reponses: [<rep1>, <rep2>, ...] },
-   *   { mere: <commentaire mère>, reponses: [...] },
-   * ]
-   *
-   * Toutes les réponses (à n'importe quel niveau) sont attachées
-   * à leur mère d'origine.
-   */
   const groupes = [];
 
   function collecterReponses(commentaire, bucket) {
     if (commentaire.reponses && commentaire.reponses.length > 0) {
       for (const r of commentaire.reponses) {
         bucket.push(r);
-        collecterReponses(r, bucket);   // récursion pour descendre plus bas
+        collecterReponses(r, bucket);
       }
     }
   }
@@ -290,7 +280,6 @@ export default function CommentairesModal({ publication, onClose }) {
           </div>
         </div>
 
-        {/* ✅ CHAQUE GROUPE : mère + ses réponses juste en dessous */}
         <div className="commentaires-liste" ref={listeRef}>
           {isLoading ? (
             <p className="sub" style={{ textAlign: "center", padding: 20 }}>
@@ -303,14 +292,12 @@ export default function CommentairesModal({ publication, onClose }) {
           ) : (
             groupes.map(({ mere, reponses }) => (
               <div key={mere.id} className="commentaire-groupe">
-                {/* La mère */}
                 <Commentaire
                   commentaire={mere}
                   estReponse={false}
                   {...callbacks}
                 />
 
-                {/* Ses réponses, une seule tabulation */}
                 {reponses.length > 0 && (
                   <div className="commentaires-reponses-groupe">
                     {reponses.map((r) => (
@@ -379,7 +366,8 @@ export default function CommentairesModal({ publication, onClose }) {
 }
 
 /* ============================================================
-   COMPOSANT COMMENTAIRE (inchangé)
+   COMPOSANT COMMENTAIRE
+   ✅ Menu 3 points rendu via PORTAL pour ne pas être coupé
    ============================================================ */
 function Commentaire({
   commentaire,
@@ -403,10 +391,29 @@ function Commentaire({
   const enEdition = editionId === commentaire.id;
   const menuOuvert = menuOuvertId === commentaire.id;
 
+  // ✅ État local pour la position du menu
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+
+  // ✅ Texte avec mentions surlignées
   const texteRendu = useMemo(
     () => rendreMentions(commentaire.texte, listeProfils),
     [commentaire.texte, listeProfils]
   );
+
+  // ✅ Gestion de l'ouverture du menu
+  function toggleMenu(e) {
+    e.stopPropagation();
+    if (menuOuvert) {
+      setMenuOuvertId(null);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+      setMenuOuvertId(commentaire.id);
+    }
+  }
 
   return (
     <div
@@ -479,6 +486,7 @@ function Commentaire({
           )}
         </div>
 
+        {/* Bouton 3 points */}
         {!enEdition && (
           <div
             className="commentaire-menu"
@@ -486,41 +494,52 @@ function Commentaire({
           >
             <button
               className="commentaire-menu-btn"
-              onClick={() =>
-                setMenuOuvertId(menuOuvert ? null : commentaire.id)
-              }
+              onClick={toggleMenu}
               aria-label="Options"
             >
               <FiMoreHorizontal size={16} />
             </button>
-
-            {menuOuvert && (
-              <div className="commentaire-menu-list">
-                {estMoi ? (
-                  <>
-                    <button onClick={() => onEdition(commentaire)}>
-                      <FiEdit2 size={14} /> Modifier
-                    </button>
-                    <button
-                      onClick={() => onSupprimer(commentaire.id)}
-                      className="danger"
-                    >
-                      <FiTrash2 size={14} /> Supprimer
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => onSignaler(commentaire.id)}
-                    className="danger"
-                  >
-                    <FiFlag size={14} /> Signaler
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* ✅ MENU RENDU VIA PORTAL (non coupé) */}
+      {menuOuvert &&
+        !enEdition &&
+        createPortal(
+          <div
+            className="commentaire-menu-list-portal"
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              right: menuPos.right,
+              zIndex: 99999,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {estMoi ? (
+              <>
+                <button onClick={() => onEdition(commentaire)}>
+                  <FiEdit2 size={14} /> Modifier
+                </button>
+                <button
+                  onClick={() => onSupprimer(commentaire.id)}
+                  className="danger"
+                >
+                  <FiTrash2 size={14} /> Supprimer
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => onSignaler(commentaire.id)}
+                className="danger"
+              >
+                <FiFlag size={14} /> Signaler
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

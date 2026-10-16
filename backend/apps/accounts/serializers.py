@@ -7,9 +7,10 @@ from .models import Abonnement, Eglise, EgliseMembre, Profil, Utilisateur
 class UtilisateurSerializer(serializers.ModelSerializer):
     class Meta:
         model = Utilisateur
-        fields = ("id", "email", "pseudo", "role", "langue", "theme_interface",
-                  "email_verifie", "cree_le")
-        read_only_fields = ("id", "email_verifie", "cree_le", "role")
+        fields = ("id", "email", "pseudo", "role", "niveau_moderateur",
+                  "langue", "theme_interface", "email_verifie", "cree_le")
+        read_only_fields = ("id", "email_verifie", "cree_le", "role",
+                            "niveau_moderateur")
 
 
 class InscriptionSerializer(serializers.ModelSerializer):
@@ -38,6 +39,15 @@ class ProfilSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source="utilisateur.id", read_only=True)
     pseudo = serializers.CharField(source="utilisateur.pseudo", read_only=True)
     role = serializers.CharField(source="utilisateur.role", read_only=True)
+    # ✅ Niveau du modérateur
+    niveau_moderateur = serializers.IntegerField(
+        source="utilisateur.niveau_moderateur",
+        read_only=True,
+    )
+    nb_signalements_traites = serializers.IntegerField(
+        source="utilisateur.nb_signalements_traites",
+        read_only=True,
+    )
     initiales = serializers.CharField(read_only=True)
     est_suivi = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
@@ -46,7 +56,8 @@ class ProfilSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profil
         fields = (
-            "id", "pseudo", "role", "nom_affiche", "initiales", "bio",
+            "id", "pseudo", "role", "niveau_moderateur", "nb_signalements_traites",
+            "nom_affiche", "initiales", "bio",
             "avatar_url", "avatar",
             "couverture_url", "couverture",
             "sous_titre", "eglise",

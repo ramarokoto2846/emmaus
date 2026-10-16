@@ -899,28 +899,98 @@ main {
   font-weight: 500;
 }
 
+/* ============================================================
+   ACTIONS DU POST
+   ============================================================ */
+/* ============================================================
+   ACTIONS DU POST
+   ============================================================ */
 .acts {
   display: flex;
-  gap: 6px;
+  align-items: stretch;
+  gap: 4px;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
 
-.acts button {
+/* ---------- Boutons avec icône + libellé + compteur ---------- */
+.acts .act-btn {
   display: flex;
-  gap: 8px;
+  flex-direction: column;       /* icône/libellé au-dessus, compteur en dessous */
   align-items: center;
-  padding: 8px 14px;
-  border-radius: 99px;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 12px;            /* ← largeur minimale nécessaire */
+  border-radius: 14px;
   color: var(--mute);
   font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+  flex: 0 0 auto;               /* ← ne s'étire PAS */
+  min-width: 0;
 }
 
-.acts button:hover { background: var(--bg); }
-.acts button.on { color: var(--flame); background: rgba(245,165,36,.14); }
-.acts button.on svg { fill: currentColor; }
-.acts .sv { margin-left: auto; }
+.acts .act-btn:hover {
+  background: var(--bg);
+}
+
+.acts .act-btn.on {
+  color: var(--flame);
+  background: rgba(245, 165, 36, 0.14);
+}
+
+.acts .act-btn.on svg {
+  fill: currentColor;
+}
+
+/* Ligne du haut : icône + libellé côte à côte */
+.acts .act-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.acts .act-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Compteur en dessous */
+.acts .act-compteur {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.7;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Bouton Enregistrer (icône seule, à droite) ---------- */
+.acts .sv {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 14px;
+  color: var(--mute);
+  transition: background 0.15s, color 0.15s;
+  flex: 0 0 auto;               /* ← ne s'étire pas */
+  margin-left: auto;            /* ✅ pousse à droite */
+}
+
+.acts .sv:hover {
+  background: var(--bg);
+}
+
+.acts .sv.on {
+  color: var(--flame);
+  background: rgba(245, 165, 36, 0.14);
+}
+
+.acts .sv.on svg {
+  fill: currentColor;
+}
 
 /* ============================================================
    RIGHT PANEL
@@ -4743,4 +4813,954 @@ header.ph > .badge-verifie {
     background: rgba(76, 175, 80, 0.15);
     color: #81c784;
   }
+}
+
+/* ============================================================
+   MODAL RECHERCHE (TopBar)
+   ============================================================ */
+.modal-recherche {
+  max-width: 620px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-recherche-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 20px;
+  gap: 14px;
+}
+
+/* Barre de saisie */
+.modal-recherche-barre {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: 46px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--mute);
+  transition: border-color 0.15s;
+}
+
+.modal-recherche-barre:focus-within {
+  border-color: var(--brand);
+}
+
+.modal-recherche-barre input {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  min-width: 0;
+}
+
+.modal-recherche-barre input::placeholder {
+  color: var(--mute);
+}
+
+.modal-recherche-clear {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  color: var(--mute);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-recherche-clear:hover {
+  background: var(--surf);
+  color: var(--ink);
+}
+
+/* Filtres */
+.modal-recherche-filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.modal-recherche-filtre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--mute);
+  font-size: 13.5px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.modal-recherche-filtre select {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+  cursor: pointer;
+  padding-right: 4px;
+}
+
+/* Résultats */
+.modal-recherche-resultats {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-recherche-resultats::-webkit-scrollbar {
+  display: none;
+}
+
+.modal-recherche-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+.modal-recherche-item:hover {
+  background: var(--bg);
+}
+
+.modal-recherche-thumb {
+  width: 90px;
+  height: 56px;
+  border-radius: 10px;
+  flex: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-recherche-duree {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.modal-recherche-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-recherche-item-info b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-recherche-item-info small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--mute);
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+  .modal-recherche {
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-recherche-filtre {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .modal-recherche-thumb {
+    width: 72px;
+    height: 48px;
+  }
+}
+
+/* ============================================================
+   MODAL RECHERCHE
+   ============================================================ */
+.modal-recherche {
+  max-width: 620px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-recherche-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 20px;
+  gap: 14px;
+}
+
+/* Barre de saisie */
+.modal-recherche-barre {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: 46px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--mute);
+  transition: border-color 0.15s;
+}
+
+.modal-recherche-barre:focus-within {
+  border-color: var(--brand);
+}
+
+.modal-recherche-barre input {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  min-width: 0;
+}
+
+.modal-recherche-barre input::placeholder {
+  color: var(--mute);
+}
+
+.modal-recherche-clear {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  color: var(--mute);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-recherche-clear:hover {
+  background: var(--surf);
+  color: var(--ink);
+}
+
+/* ============================================================
+   FILTRES — Dropdowns custom
+   ============================================================ */
+.modal-recherche-filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.dropdown-filtre {
+  position: relative;
+  flex: 1;
+  min-width: 180px;
+}
+
+.dropdown-filtre-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropdown-filtre-btn:hover {
+  border-color: var(--brand);
+  background: var(--brandsoft);
+}
+
+.dropdown-filtre-btn > span {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-filtre-btn > svg:first-child {
+  color: var(--brand);
+  flex: none;
+}
+
+.dropdown-filtre-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow:
+    0 4px 12px rgba(60, 10, 25, 0.08),
+    0 12px 30px rgba(60, 10, 25, 0.15);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+  animation: dropdownFade 0.15s ease-out;
+}
+
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-filtre-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.dropdown-filtre-item:hover {
+  background: var(--bg);
+}
+
+.dropdown-filtre-item.on {
+  background: var(--brandsoft);
+  color: var(--brand);
+  font-weight: 700;
+}
+
+/* ============================================================
+   RÉSULTATS
+   ============================================================ */
+.modal-recherche-resultats {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-recherche-resultats::-webkit-scrollbar {
+  display: none;
+}
+
+.modal-recherche-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+.modal-recherche-item:hover {
+  background: var(--bg);
+}
+
+.modal-recherche-thumb {
+  width: 90px;
+  height: 56px;
+  border-radius: 10px;
+  flex: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-recherche-duree {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.modal-recherche-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-recherche-item-info b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-recherche-item-info small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--mute);
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+@media (max-width: 720px) {
+  .modal-recherche {
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .dropdown-filtre {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .modal-recherche-thumb {
+    width: 72px;
+    height: 48px;
+  }
+}
+
+/* ============================================================
+   ONGLETS DE LA MODAL RECHERCHE
+   ============================================================ */
+.modal-recherche-onglets {
+  display: flex;
+  gap: 6px;
+  padding: 6px 20px 0;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.modal-recherche-onglet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--mute);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.modal-recherche-onglet:hover {
+  color: var(--ink);
+}
+
+.modal-recherche-onglet.on {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+}
+
+.modal-recherche-onglet svg {
+  flex: none;
+}
+
+/* ============================================================
+   MODAL RECHERCHE — simplifiée
+   ============================================================ */
+.modal-recherche {
+  max-width: 620px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-recherche-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 20px;
+  gap: 14px;
+}
+
+/* Barre de saisie */
+.modal-recherche-barre {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: 46px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--mute);
+  transition: border-color 0.15s;
+  flex: none;
+}
+
+.modal-recherche-barre:focus-within {
+  border-color: var(--brand);
+}
+
+.modal-recherche-barre input {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  min-width: 0;
+}
+
+.modal-recherche-barre input::placeholder {
+  color: var(--mute);
+}
+
+.modal-recherche-clear {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  color: var(--mute);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-recherche-clear:hover {
+  background: var(--surf);
+  color: var(--ink);
+}
+
+/* Résultats */
+.modal-recherche-resultats {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.modal-recherche-resultats::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   CARTES DE PROFIL (avec couverture)
+   ============================================================ */
+.profil-cartes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.profil-carte {
+  display: flex;
+  flex-direction: column;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: center;
+  padding: 0 0 14px;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.profil-carte:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand);
+  box-shadow: 0 8px 24px rgba(123, 30, 43, 0.12);
+}
+
+.profil-carte-couverture {
+  width: 100%;
+  height: 70px;
+  flex: none;
+  background-size: cover;
+  background-position: center;
+}
+
+.profil-carte-avatar {
+  margin-top: -28px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.profil-carte-avatar .av {
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--surf);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.profil-carte-infos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px;
+  min-width: 0;
+}
+
+.profil-carte-infos small {
+  font-size: 12.5px;
+  color: var(--mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .modal-recherche {
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .profil-cartes {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .profil-carte-couverture {
+    height: 60px;
+  }
+
+  .profil-carte-avatar .av {
+    width: 48px;
+    height: 48px;
+    margin-top: -24px;
+  }
+}
+
+/* ============================================================
+   NOM D'UTILISATEUR — Troncature intelligente
+   ============================================================ */
+.nom-utilisateur {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  vertical-align: middle;
+  min-width: 0;              /* ✅ Autorise le rétrécissement */
+  max-width: 100%;
+}
+
+.nom-utilisateur-texte {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;              /* ✅ IMPORTANT */
+  flex: 0 1 auto;            /* ✅ Shrink allowed */
+}
+
+/* ============================================================
+   BADGE MODÉRATEUR — progression argent → or
+   ============================================================ */
+
+/* Base commune */
+.badge-role-moderateur {
+  position: relative;
+  overflow: hidden;
+  animation: badgeAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.badge-role-moderateur:hover {
+  transform: scale(1.18) rotate(-5deg);
+}
+
+/* ✨ Effet brillance traversant */
+.badge-role-moderateur::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: badgeShine 3s ease-in-out infinite;
+}
+
+@keyframes badgeShine {
+  0%, 100% { transform: translateX(-150%); opacity: 0; }
+  50% { transform: translateX(150%); opacity: 1; }
+}
+
+/* ── Niveau 1 : Argent ─────────────────────────────────── */
+.badge-mod-niveau-1 {
+  animation: badgeAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    pulseArgent 3s ease-in-out infinite;
+}
+
+@keyframes pulseArgent {
+  0%, 100% { box-shadow: 0 0 8px rgba(192, 192, 192, 0.4); }
+  50% { box-shadow: 0 0 12px rgba(192, 192, 192, 0.65); }
+}
+
+/* ── Niveau 2 : Argent renforcé ────────────────────────── */
+.badge-mod-niveau-2 {
+  animation: badgeAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    pulseArgent2 3s ease-in-out infinite;
+}
+
+@keyframes pulseArgent2 {
+  0%, 100% { box-shadow: 0 0 8px rgba(168, 169, 173, 0.5); }
+  50% { box-shadow: 0 0 14px rgba(168, 169, 173, 0.8); }
+}
+
+/* ── Niveau 3 : Or ─────────────────────────────────────── */
+.badge-mod-niveau-3 {
+  animation: badgeAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    pulseOr 2.5s ease-in-out infinite;
+}
+
+@keyframes pulseOr {
+  0%, 100% { box-shadow: 0 0 10px rgba(212, 162, 51, 0.55); }
+  50% { box-shadow: 0 0 16px rgba(212, 162, 51, 0.9); }
+}
+
+/* ── Niveau 4 : Or royal ───────────────────────────────── */
+.badge-mod-niveau-4 {
+  animation: badgeAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    pulseOrRoyal 2s ease-in-out infinite;
+}
+
+@keyframes pulseOrRoyal {
+  0%, 100% {
+    box-shadow:
+      0 0 12px rgba(184, 135, 42, 0.65),
+      0 0 0 0 rgba(255, 224, 122, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 18px rgba(184, 135, 42, 1),
+      0 0 0 4px rgba(255, 224, 122, 0.25);
+  }
+}
+
+/* Aura dorée pulsée pour niveau 3+ */
+.badge-mod-niveau-3::before,
+.badge-mod-niveau-4::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 224, 122, 0.35) 0%,
+    transparent 70%
+  );
+  animation: auraOr 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes auraOr {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
+/* ============================================================
+   BADGE ADMIN — couronne dorée style Discord
+   ============================================================ */
+.badge-role-admin {
+  position: relative;
+  overflow: hidden;
+  animation: badgeAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    pulseAdminOr 2.5s ease-in-out infinite;
+}
+
+.badge-role-admin:hover {
+  transform: scale(1.18) rotate(-5deg);
+}
+
+/* Effet de brillance traversant */
+.badge-role-admin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.6) 50%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: badgeShine 3s ease-in-out infinite;
+}
+
+/* Aura dorée pulsée */
+.badge-role-admin::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 224, 122, 0.4) 0%,
+    transparent 70%
+  );
+  animation: auraAdmin 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes pulseAdminOr {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(212, 162, 51, 0.55),
+      0 0 0 0 rgba(255, 224, 122, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 18px rgba(212, 162, 51, 1),
+      0 0 0 4px rgba(255, 224, 122, 0.3);
+  }
+}
+
+@keyframes auraAdmin {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+
+/* ============================================================
+   MENU COMMENTAIRE (PORTAL — non coupé)
+   ============================================================ */
+.commentaire-menu-list-portal {
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow:
+    0 4px 12px rgba(60, 10, 25, 0.06),
+    0 12px 30px rgba(60, 10, 25, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: commentaireMenuFade 0.15s ease-out;
+}
+
+.commentaire-menu-list-portal button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+.commentaire-menu-list-portal button:hover {
+  background: var(--bg);
+}
+
+.commentaire-menu-list-portal button.danger {
+  color: var(--live);
+}
+
+.commentaire-menu-list-portal button.danger:hover {
+  background: rgba(200, 40, 60, 0.08);
 }

@@ -9,7 +9,6 @@ import {
   FiTrash2,
   FiFlag,
   FiEdit2,
-  FiRepeat,
   FiCheckCircle,
   FiAlertTriangle,
 } from "react-icons/fi";
@@ -29,7 +28,6 @@ import {
   amenPublication,
   supprimerPublication,
   enregistrerContenu,
-  repartager,
 } from "../../api/endpoints";
 import { formatRelative } from "../../utils/format";
 
@@ -81,26 +79,6 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           titre: data?.enregistre ? "Enregistré" : "Retiré",
         }
       );
-    },
-  });
-
-  /* ---- Repartager ---- */
-  const repartagerMutation = useMutation({
-    mutationFn: () => repartager(publication.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["fil"] });
-      qc.invalidateQueries({ queryKey: ["mes-publications"] });
-      qc.invalidateQueries({ queryKey: ["publication", publication.id] });
-      afficherToast("Publication repartagée sur ton mur.", {
-        type: "success",
-        titre: "Repartagé",
-      });
-    },
-    onError: (err) => {
-      const msg =
-        err?.response?.data?.detail ||
-        "Impossible de repartager cette publication.";
-      afficherToast(msg, { type: "error", titre: "Erreur" });
     },
   });
 
@@ -228,7 +206,6 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           <div className="post-menu-list">
             {estMoi ? (
               <>
-                {/* ✅ Modifier remplace Voir */}
                 <button onClick={modifier}>
                   <FiEdit2 size={14} /> Modifier
                 </button>
@@ -258,7 +235,6 @@ export default function Post({ publication, onOuvrirCommentaires }) {
       <article className={`card post ${estRepartage ? "post-repartage" : ""}`}>
         {estRepartage && (
           <div className="fb-partage-indicateur">
-            <FiRepeat size={14} />
             <span>
               <b>{publication.auteur?.nom_affiche}</b> a repartagé
             </span>
@@ -352,45 +328,65 @@ export default function Post({ publication, onOuvrirCommentaires }) {
           </div>
         )}
 
+        {/* ============================================================
+            ACTIONS
+           ============================================================ */}
         <div className="acts">
+          {/* ✅ AMEN */}
           <button
-            className={publication.est_amen ? "on" : ""}
+            className={`act-btn ${publication.est_amen ? "on" : ""}`}
             onClick={() => amenMutation.mutate()}
             disabled={amenMutation.isPending}
             aria-label="Amen"
           >
-            <svg className="i">
-              <use href="#flame" />
-            </svg>
-            <span>{publication.nb_amen || 0}</span>
+            <div className="act-top">
+              <svg className="i" width={18} height={18}>
+                <use href="#flame" />
+              </svg>
+              <span className="act-label">Amen</span>
+            </div>
+            <span className="act-compteur">{publication.nb_amen || 0}</span>
           </button>
 
-          <button onClick={ouvrirCommentaires} aria-label="Commenter">
-            <FiMessageCircle size={18} />
-            <span>{publication.nb_commentaires || 0}</span>
+          {/* ✅ Commenter */}
+          <button
+            className="act-btn"
+            onClick={ouvrirCommentaires}
+            aria-label="Commenter"
+          >
+            <div className="act-top">
+              <FiMessageCircle size={18} />
+              <span className="act-label">Commenter</span>
+            </div>
+            <span className="act-compteur">
+              {publication.nb_commentaires || 0}
+            </span>
           </button>
 
-          <button onClick={() => setModalePartage(true)} aria-label="Partager">
-            <FiShare2 size={18} />
-            <span>{publication.nb_partages || 0}</span>
+          {/* ✅ Partager */}
+          <button
+            className="act-btn"
+            onClick={() => setModalePartage(true)}
+            aria-label="Partager"
+          >
+            <div className="act-top">
+              <FiShare2 size={18} />
+              <span className="act-label">Partager</span>
+            </div>
+            <span className="act-compteur">
+              {publication.nb_partages || 0}
+            </span>
           </button>
 
+          {/* Enregistrer (icône seule, à droite) */}
           <button
             className={`sv ${publication.est_enregistree ? "on" : ""}`}
             onClick={() => enregistrerMutation.mutate()}
             disabled={enregistrerMutation.isPending}
             aria-label="Enregistrer"
+            title="Enregistrer"
           >
             <FiBookmark size={18} />
-          </button>
-
-          <button
-            onClick={() => repartagerMutation.mutate()}
-            disabled={repartagerMutation.isPending}
-            aria-label="Repartager"
-            title="Repartager sur mon mur"
-          >
-            <FiRepeat size={18} />
           </button>
         </div>
       </article>

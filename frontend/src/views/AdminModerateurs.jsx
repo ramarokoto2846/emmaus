@@ -17,6 +17,61 @@ import {
   retrograderModerateur,
 } from "../api/endpoints";
 
+/* ============================================================
+   Badge de niveau pour la liste des modérateurs
+   ============================================================ */
+function BadgeNiveau({ niveau = 1, signalements = 0 }) {
+  const styles = {
+    1: {
+      label: "🥈 Argent",
+      bg: "rgba(192, 192, 192, 0.15)",
+      color: "#6B6B6B",
+      border: "rgba(192, 192, 192, 0.4)",
+      title: "Niveau 1 — Argent (0 à 99 signalements traités)",
+    },
+    2: {
+      label: "🥇 Or",
+      bg: "rgba(212, 162, 51, 0.15)",
+      color: "#B8872A",
+      border: "rgba(212, 162, 51, 0.4)",
+      title: "Niveau 2 — Or (100 à 9 999 signalements traités)",
+    },
+    3: {
+      label: "👑 Or royal",
+      bg: "rgba(184, 135, 42, 0.2)",
+      color: "#8B5A00",
+      border: "rgba(184, 135, 42, 0.5)",
+      title: "Niveau 3 — Or royal (10 000+ signalements traités)",
+    },
+  };
+
+  const s = styles[niveau] || styles[1];
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 700,
+        padding: "3px 10px",
+        borderRadius: 99,
+        background: s.bg,
+        color: s.color,
+        border: `1px solid ${s.border}`,
+        whiteSpace: "nowrap",
+      }}
+      title={s.title}
+    >
+      {s.label}
+      <span style={{ opacity: 0.7, fontWeight: 500 }}>
+        · {signalements.toLocaleString("fr-FR")}
+      </span>
+    </span>
+  );
+}
+
 export default function AdminModerateurs() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -179,6 +234,9 @@ export default function AdminModerateurs() {
           {listeFiltree.map((m, index) => {
             const estDernier = index === listeFiltree.length - 1;
             const nom = m.nom_affiche || m.pseudo;
+            const niveau = m.niveau_moderateur || 1;
+            const traites = m.nb_signalements_traites || 0;
+
             return (
               <div
                 key={m.id}
@@ -195,19 +253,44 @@ export default function AdminModerateurs() {
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <NomUtilisateur profil={m} taille="sm" />
+
                   <div
                     className="sub"
                     style={{
                       fontSize: 12.5,
-                      marginTop: 2,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      marginTop: 4,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
                     }}
                   >
-                    {m.pseudo && `@${m.pseudo}`}
-                    {m.pseudo && m.email && " · "}
-                    {m.email}
+                    {/* ✅ Badge de niveau */}
+                    <BadgeNiveau niveau={niveau} signalements={traites} />
+
+                    {m.pseudo && (
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        @{m.pseudo}
+                      </span>
+                    )}
+
+                    {m.email && (
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        · {m.email}
+                      </span>
+                    )}
                   </div>
                 </div>
 

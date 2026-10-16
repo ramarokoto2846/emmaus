@@ -9,12 +9,17 @@ class AuteurMiniSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(source="utilisateur.id", read_only=True)
     pseudo = serializers.CharField(source="utilisateur.pseudo", read_only=True)
     role = serializers.CharField(source="utilisateur.role", read_only=True)
+    niveau_moderateur = serializers.IntegerField(
+        source="utilisateur.niveau_moderateur",
+        read_only=True,
+    )
     initiales = serializers.CharField(read_only=True)
     avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = Profil
-        fields = ("id", "pseudo", "role", "nom_affiche", "initiales",
+        fields = ("id", "pseudo", "role", "niveau_moderateur",
+                  "nom_affiche", "initiales",
                   "avatar_url", "avatar", "sous_titre")
 
     def get_avatar(self, obj):

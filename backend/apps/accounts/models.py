@@ -48,6 +48,12 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin, UUIDModel):
     telephone = models.CharField(max_length=30, unique=True, null=True, blank=True)
     role = models.CharField(max_length=20, choices=RoleUtilisateur.choices,
                             default=RoleUtilisateur.MEMBRE)
+
+    # 1 = Argent (0-99)   |   2 = Or (100-9999)   |   3 = Or royal (10000+)
+    niveau_moderateur = models.PositiveSmallIntegerField(default=1)
+
+    nb_signalements_traites = models.PositiveIntegerField(default=0)
+
     email_verifie = models.BooleanField(default=False)
     statut = models.CharField(max_length=20, choices=StatutCompte.choices,
                               default=StatutCompte.ACTIF)
