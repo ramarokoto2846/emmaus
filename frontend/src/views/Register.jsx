@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FiMail, FiLock, FiUser, FiEye, FiEyeOff } from "react-icons/fi";
-import { inscription, login } from "../api/endpoints";
-import { useAuthStore } from "../store/authStore";
+import { inscription } from "../api/endpoints";
+import { useToast } from "../components/ui/Toast";
 import Logo from "../components/ui/Logo";
 
 export default function Register() {
@@ -16,8 +16,8 @@ export default function Register() {
   const [erreur, setErreur] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const setTokens = useAuthStore((s) => s.setTokens);
   const navigate = useNavigate();
+  const { afficher: afficherToast } = useToast();
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -25,21 +25,41 @@ export default function Register() {
     e.preventDefault();
     setErreur("");
     setLoading(true);
+
     try {
-      await inscription(form);
-      const data = await login(form.email, form.mot_de_passe);
-      setTokens(data.access, data.refresh);
-      navigate("/");
+      // 1. Création du compte (le backend envoie le code par email)
+      const email = form.email.trim().toLowerCase();
+
+      await inscription({
+        email,
+        pseudo: form.pseudo.trim(),
+        mot_de_passe: form.mot_de_passe,
+        nom_affiche: form.nom_affiche?.trim() || form.pseudo.trim(),
+      });
+
+      // 2. Message de confirmation
+      afficherToast(
+        "Un code de vérification a été envoyé à votre adresse email.",
+        {
+          type: "success",
+          titre: "Vérifiez votre email",
+        }
+      );
+
+      // 3. Redirection vers la page de vérification
+      navigate(`/verifier-email?email=${encodeURIComponent(email)}`);
     } catch (err) {
       const detail = err.response?.data?.details || err.response?.data;
       let msg = "Erreur lors de l'inscription.";
-      if (typeof detail === "object") {
+
+      if (typeof detail === "object" && detail !== null) {
         msg = Object.entries(detail)
           .map(([k, v]) => `${k}: ${[].concat(v).join(", ")}`)
           .join(" · ");
       } else if (typeof detail === "string") {
         msg = detail;
       }
+
       setErreur(msg);
     } finally {
       setLoading(false);
@@ -58,9 +78,9 @@ export default function Register() {
         <Logo size={64} />
 
         <div className="auth-form-body">
-          <h2 className="auth-title">Rejoins Emmaüs</h2>
+          <h2 className="auth-title">Rejoignez Emmaüs</h2>
           <p className="auth-sub">
-            Crée ton compte et partage la Parole avec ta communauté
+            Créez votre compte et partagez la Parole avec votre communauté
           </p>
 
           <label className="auth-field">
@@ -71,8 +91,9 @@ export default function Register() {
                 type="email"
                 value={form.email}
                 onChange={set("email")}
-                placeholder="ton@email.com"
+                placeholder="votre@email.com"
                 required
+                autoComplete="email"
               />
             </div>
           </label>
@@ -85,9 +106,10 @@ export default function Register() {
                 type="text"
                 value={form.pseudo}
                 onChange={set("pseudo")}
-                placeholder="tonpseudo"
+                placeholder="votrepseudo"
                 minLength={3}
                 required
+                autoComplete="username"
               />
             </div>
           </label>
@@ -100,7 +122,7 @@ export default function Register() {
                 type="text"
                 value={form.nom_affiche}
                 onChange={set("nom_affiche")}
-                placeholder="Ton nom public (optionnel)"
+                placeholder="Votre nom public (optionnel)"
               />
             </div>
           </label>
@@ -116,6 +138,7 @@ export default function Register() {
                 placeholder="8 caractères minimum"
                 minLength={8}
                 required
+                autoComplete="new-password"
               />
               <button
                 type="button"

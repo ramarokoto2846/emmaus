@@ -8,12 +8,21 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 
+from .models import CodeVerificationEmail
+from .services import envoyer_code_verification_email
+
 from apps.common.pagination import ParIdPagination, StandardPagination
 from apps.notifications.services import creer_notification
 from .models import Abonnement, Eglise, Profil
 from .serializers import (AbonnementSerializer, EgliseSerializer,
                           InscriptionSerializer, ProfilSerializer,
                           UtilisateurSerializer)
+
+from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError
+
+from .models import CodeReinitialisation
+from .services import envoyer_code_reinitialisation
 
 User = get_user_model()
 
@@ -25,14 +34,46 @@ class InscriptionView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = InscriptionSerializer
     permission_classes = [AllowAny]
-    authentication_classes = []          # ✅ pas de CSRF
+    authentication_classes = []
 
     def create(self, request, *args, **kwargs):
         s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
         user = s.save()
+
+        # ✅ Désactiver le compte jusqu'à vérification
+        user.email_verifie = False
+        user.is_active = False
+        user.save(update_fields=["email_verifie", "is_active"])
+
+        # ✅ Générer et envoyer le code
+        code_obj = CodeVerificationEmail.generer_pour(user)
+        try:
+            envoyer_code_verification_email(
+                user.email, user.pseudo, code_obj.code
+            )
+        except Exception as e:
+            # Si l'email ne peut pas être envoyé, on supprime le compte
+            user.delete()
+            return Response(
+                {
+                    "detail": (
+                        "Impossible d'envoyer l'email de vérification. "
+                        "Vérifiez que votre adresse email est valide."
+                    )
+                },
+                status=400,
+            )
+
         return Response(
-            UtilisateurSerializer(user).data,
+            {
+                "detail": (
+                    "Un code de vérification a été envoyé à votre adresse email. "
+                    "Saisissez-le pour activer votre compte."
+                ),
+                "email": user.email,
+                "pseudo": user.pseudo,
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -356,3 +397,185 @@ class UploadCouvertureView(APIView):
         profil.couverture = fichier
         profil.save(update_fields=["couverture"])
         return Response(ProfilSerializer(profil, context={"request": request}).data)
+
+
+class DemanderReinitialisationView(APIView):
+    """POST /api/auth/mot-de-passe-oublie/
+    Envoie un code à 6 chiffres par email."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get("email", "").strip().lower()
+        if not email:
+            return Response({"detail": "Email requis."}, status=400)
+
+        # ✅ Anti-énumération : toujours renvoyer 200
+        try:
+            utilisateur = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({"detail": "Si cet email existe, un code a été envoyé."})
+
+        code_obj = CodeReinitialisation.generer_pour(utilisateur)
+        try:
+            envoyer_code_reinitialisation(
+                utilisateur.email, utilisateur.pseudo, code_obj.code
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"Erreur d'envoi d'email : {str(e)}"},
+                status=500,
+            )
+
+        return Response({"detail": "Si cet email existe, un code a été envoyé."})
+
+
+class VerifierCodeView(APIView):
+    """POST /api/auth/verifier-code/
+    Vérifie le code (optionnel : le frontend peut le faire avant l'étape finale)."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get("email", "").strip().lower()
+        code = request.data.get("code", "").strip()
+
+        if not email or not code:
+            return Response({"detail": "Email et code requis."}, status=400)
+
+        try:
+            utilisateur = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({"detail": "Code invalide."}, status=400)
+
+        code_obj = CodeReinitialisation.objects.filter(
+            utilisateur=utilisateur, code=code, utilise=False
+        ).first()
+
+        if not code_obj or not code_obj.est_valide():
+            return Response({"detail": "Code invalide ou expiré."}, status=400)
+
+        return Response({"valide": True})
+
+
+class ReinitialiserMotDePasseView(APIView):
+    """POST /api/auth/reinitialiser-mot-de-passe/
+    Change le mot de passe avec le code reçu."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get("email", "").strip().lower()
+        code = request.data.get("code", "").strip()
+        nouveau_mdp = request.data.get("nouveau_mot_de_passe", "")
+
+        if not email or not code or not nouveau_mdp:
+            return Response(
+                {"detail": "Email, code et nouveau mot de passe requis."},
+                status=400,
+            )
+
+        try:
+            utilisateur = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({"detail": "Code invalide."}, status=400)
+
+        code_obj = CodeReinitialisation.objects.filter(
+            utilisateur=utilisateur, code=code, utilise=False
+        ).first()
+
+        if not code_obj or not code_obj.est_valide():
+            return Response({"detail": "Code invalide ou expiré."}, status=400)
+
+        # Valider le mot de passe
+        try:
+            password_validation.validate_password(nouveau_mdp, utilisateur)
+        except ValidationError as e:
+            return Response({"detail": list(e.messages)}, status=400)
+
+        utilisateur.set_password(nouveau_mdp)
+        utilisateur.save(update_fields=["password"])
+
+        code_obj.utilise = True
+        code_obj.save(update_fields=["utilise"])
+
+        return Response({"detail": "Mot de passe réinitialisé avec succès."})
+
+
+class VerifierEmailView(APIView):
+    """POST /api/auth/verifier-email/"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get("email", "").strip().lower()
+        code = request.data.get("code", "").strip()
+
+        if not email or not code:
+            return Response({"detail": "Email et code requis."}, status=400)
+
+        try:
+            utilisateur = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({"detail": "Code invalide."}, status=400)
+
+        if utilisateur.email_verifie:
+            return Response({"detail": "Cet email est déjà vérifié."}, status=400)
+
+        code_obj = CodeVerificationEmail.objects.filter(
+            utilisateur=utilisateur, code=code, utilise=False
+        ).first()
+
+        if not code_obj or not code_obj.est_valide():
+            return Response({"detail": "Code invalide ou expiré."}, status=400)
+
+        # ✅ Activer le compte
+        utilisateur.email_verifie = True
+        utilisateur.is_active = True
+        utilisateur.save(update_fields=["email_verifie", "is_active"])
+
+        code_obj.utilise = True
+        code_obj.save(update_fields=["utilise"])
+
+        return Response(
+            {"detail": "Email vérifié avec succès. Vous pouvez vous connecter."}
+        )
+
+
+class RenvoyerCodeVerificationView(APIView):
+    """POST /api/auth/renvoyer-code-verification/"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get("email", "").strip().lower()
+        if not email:
+            return Response({"detail": "Email requis."}, status=400)
+
+        try:
+            utilisateur = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            # Anti-énumération : toujours 200
+            return Response(
+                {"detail": "Si cet email existe, un nouveau code a été envoyé."}
+            )
+
+        if utilisateur.email_verifie:
+            return Response(
+                {"detail": "Cet email est déjà vérifié. Connectez-vous."},
+                status=400,
+            )
+
+        code_obj = CodeVerificationEmail.generer_pour(utilisateur)
+        try:
+            envoyer_code_verification_email(
+                utilisateur.email, utilisateur.pseudo, code_obj.code
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"Erreur d'envoi d'email : {str(e)}"}, status=500
+            )
+
+        return Response(
+            {"detail": "Si cet email existe, un nouveau code a été envoyé."}
+        )

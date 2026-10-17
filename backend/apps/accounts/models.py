@@ -1,3 +1,6 @@
+import secrets
+from datetime import timedelta                                    # ✅ AJOUT
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -179,3 +182,63 @@ class Abonnement(models.Model):
             models.CheckConstraint(check=~models.Q(suiveur=models.F("suivi")),
                                    name="pas_auto_abonnement"),
         ]
+
+
+class CodeReinitialisation(models.Model):
+    """Code à 6 chiffres pour réinitialiser un mot de passe."""
+    utilisateur = models.ForeignKey(
+        Utilisateur, on_delete=models.CASCADE, related_name="codes_reinit"
+    )
+    code = models.CharField(max_length=6)
+    cree_le = models.DateTimeField(auto_now_add=True)
+    expire_le = models.DateTimeField()
+    utilise = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "codes_reinitialisation"
+        ordering = ["-cree_le"]
+
+    @classmethod
+    def generer_pour(cls, utilisateur):
+        """Génère un code valable 15 minutes, invalide les anciens."""
+        # Invalider les anciens codes non utilisés
+        cls.objects.filter(utilisateur=utilisateur, utilise=False).update(utilise=True)
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        return cls.objects.create(
+            utilisateur=utilisateur,
+            code=code,
+            expire_le=timezone.now() + timedelta(minutes=15),
+        )
+
+    def est_valide(self):
+        return not self.utilise and timezone.now() < self.expire_le
+
+
+class CodeVerificationEmail(models.Model):
+    """Code à 6 chiffres pour vérifier l'email après inscription."""
+    utilisateur = models.ForeignKey(
+        Utilisateur, on_delete=models.CASCADE, related_name="codes_verif_email"
+    )
+    code = models.CharField(max_length=6)
+    cree_le = models.DateTimeField(auto_now_add=True)
+    expire_le = models.DateTimeField()
+    utilise = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "codes_verification_email"
+        ordering = ["-cree_le"]
+
+    @classmethod
+    def generer_pour(cls, utilisateur):
+        """Génère un code valable 15 minutes, invalide les anciens."""
+        cls.objects.filter(utilisateur=utilisateur, utilise=False).update(utilise=True)
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        return cls.objects.create(
+            utilisateur=utilisateur,
+            code=code,
+            expire_le=timezone.now() + timedelta(minutes=15),
+        )
+
+    def est_valide(self):
+        return not self.utilise and timezone.now() < self.expire_le

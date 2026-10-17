@@ -252,3 +252,30 @@ export const verifierRepartage = (id) =>
 // ============================================
 export const rechercherVideos = (params) =>
   api.get("/videos/", { params }).then((r) => r.data);
+
+
+// ============================================
+// MOT DE PASSE OUBLIÉ
+// ============================================
+export const demanderReinitialisation = (email) =>
+  api.post("/auth/mot-de-passe-oublie/", { email }).then((r) => r.data);
+
+export const verifierCodeReinitialisation = (email, code) =>
+  api.post("/auth/verifier-code/", { email, code }).then((r) => r.data);
+
+export const reinitialiserMotDePasse = (email, code, nouveauMotDePasse) =>
+  api.post("/auth/reinitialiser-mot-de-passe/", {
+    email,
+    code,
+    nouveau_mot_de_passe: nouveauMotDePasse,
+  }).then((r) => r.data);
+
+
+// ============================================
+// VÉRIFICATION EMAIL
+// ============================================
+export const verifierEmail = (email, code) =>
+  api.post("/auth/verifier-email/", { email, code }).then((r) => r.data);
+
+export const renvoyerCodeVerification = (email) =>
+  api.post("/auth/renvoyer-code-verification/", { email }).then((r) => r.data);

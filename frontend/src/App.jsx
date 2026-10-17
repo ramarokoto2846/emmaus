@@ -20,6 +20,8 @@ import Moderation from "./views/Moderation";
 import AdminVersetsSidebar from "./views/AdminVersetsSidebar";
 import Login from "./views/Login";
 import Register from "./views/Register";
+import MotDePasseOublie from "./views/MotDePasseOublie";
+import VerifierEmail from "./views/VerifierEmail";
 
 function Protege({ children }) {
   const access = useAuthStore((s) => s.access);
@@ -32,8 +34,13 @@ export default function App() {
     <>
       <IconSprite />
       <Routes>
+        {/* ---------- Routes publiques ---------- */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verifier-email" element={<VerifierEmail />} />
+        <Route path="/mot-de-passe-oublie" element={<MotDePasseOublie />} />   {/* ✅ AJOUT */}
+
+        {/* ---------- Routes protégées (avec layout) ---------- */}
         <Route
           path="/"
           element={
